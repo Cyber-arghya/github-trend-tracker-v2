@@ -5,13 +5,11 @@ import type { LeaderboardItem } from '../../types'
 interface CatalogTabProps {
   repos: LeaderboardItem[]
   isLoading: boolean
-  onSelectReadme?: (url: string, repoName: string) => void
 }
 
 export const CatalogTab: React.FC<CatalogTabProps> = ({
   repos,
   isLoading,
-  onSelectReadme,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
@@ -31,7 +29,7 @@ export const CatalogTab: React.FC<CatalogTabProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {repos.map((repo) => {
             const ai = repo.ai_specs
-            const prodScore = ai?.production_score ?? 70
+            const prodScore = ai?.production_score ?? 75
 
             return (
               <div
@@ -117,14 +115,15 @@ export const CatalogTab: React.FC<CatalogTabProps> = ({
                 <div className="pt-4 mt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
                   <span>License: <strong className="text-slate-300">{ai?.license_risk || 'Standard OSS'}</strong></span>
 
-                  {repo.readme_storage_url && onSelectReadme && (
-                    <button
-                      onClick={() => onSelectReadme(repo.readme_storage_url!, repo.repo_name)}
-                      className="px-3 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 font-medium transition-colors"
-                    >
-                      View Supabase Storage README
-                    </button>
-                  )}
+                  <a
+                    href={`https://github.com/${repo.repo_name}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 font-medium transition-colors flex items-center gap-1.5"
+                  >
+                    <span>View on GitHub</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
               </div>
             )

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Sparkles, Trophy, Database, HardDrive, RefreshCw } from 'lucide-react'
+import { Sparkles, Trophy, Database, Cpu, RefreshCw } from 'lucide-react'
 import type { ActiveTab } from '../types'
 
 interface HeaderProps {
@@ -22,18 +22,18 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white font-bold text-lg">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white font-bold text-lg">
               V2
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight text-white">GitHub Trend Tracker V2</h1>
-                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  Relational + Storage
+                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  NVIDIA AI · Zero Storage
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Autonomous scraping · Supabase Storage READMEs · Gemini 2.5 Flash Intelligence
+                Autonomous scraping · NVIDIA Nemotron 550B Intelligence · Relational Historical Trajectory
               </p>
             </div>
           </div>
@@ -45,8 +45,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs text-slate-300">
-              <HardDrive className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Storage: <strong className="text-white">readmes</strong></span>
+              <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Model: <strong className="text-white">Nemotron 550B</strong></span>
             </div>
 
             <button
@@ -102,4 +102,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   )
 }
-

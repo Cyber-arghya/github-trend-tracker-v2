@@ -4,10 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Vite + React](https://img.shields.io/badge/Vite-React%2019-646CFF?logo=vite&logoColor=white)](https://vite.dev)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL%20%2B%20Storage-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![NVIDIA Nemotron](https://img.shields.io/badge/NVIDIA-Nemotron%20550B-76B900?logo=nvidia&logoColor=white)](https://build.nvidia.com)
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed-Vercel-black?logo=vercel&logoColor=white)](https://vercel.com)
 
-An autonomous, high-performance GitHub Trending intelligence system that captures Daily, Weekly, and Monthly trending repositories, persists relational historical trajectories in PostgreSQL, offloads raw markdown documentation into **Supabase Storage**, extracts structured architectural intelligence with **Gemini 2.5 Flash**, and surfaces an **All-Time Trending Power Leaderboard** on a modern React dashboard.
+An autonomous, zero-storage GitHub Trending intelligence system that captures Daily, Weekly, and Monthly trending repositories, persists relational historical trajectories in PostgreSQL, extracts structured architectural intelligence using **NVIDIA Nemotron-3-Ultra-550B** (with **Gemini 2.5 Flash** fallback), and surfaces an **All-Time Trending Power Leaderboard** on a modern React dashboard.
 
 ---
 
@@ -15,22 +16,21 @@ An autonomous, high-performance GitHub Trending intelligence system that capture
 
 1. **🏆 All-Time Trending Power Leaderboard:**
    - Real-time ranking across all tracked repositories using a mathematically-sound, time-decayed scoring algorithm.
-   - Computes peak rank, appearance breakdown (Daily, Weekly, Monthly), and historical momentum.
+   - Tracks peak rank, appearance breakdown (Daily, Weekly, Monthly), and breakout velocity.
 
-2. **⚡ High-Speed Async Ingestion:**
-   - Powered by `httpx` and `parsel` (lxml CSS selectors) scraping GitHub Trending across all periods in under 2 seconds.
+2. **⚡ Zero-Storage Lightweight Ingestion:**
+   - No multi-megabyte README files downloaded or stored.
+   - Extracts high-density metadata directly from GitHub Trending cards in under 2 seconds.
 
-3. **📦 Supabase Storage README Offloading:**
-   - Raw multi-megabyte `README.md` files are streamed into the Supabase Storage bucket `readmes/` (`readmes/{owner}_{repo}.md`).
-   - Database rows remain lean and lightning-fast with direct storage references.
+3. **🧠 Multi-Tier AI Intelligence Engine:**
+   - **Primary Model:** NVIDIA Nemotron-3-Ultra-550B (`nvidia/nemotron-3-ultra-550b-a55b`).
+   - **Fallback Model:** Google Gemini 2.5 Flash.
+   - **Offline Fallback:** Rule-based keyword heuristics.
+   - Extracts architecture category (CLI Tool, AI/ML Framework, Library/SDK), translated English TL;DR, tech stack pills, and production readiness scores (1-100).
 
-4. **🧠 Gemini 2.5 Flash Structured AI Intelligence:**
-   - Analyzes project blueprints with Pydantic JSON schemas.
-   - Extracts architecture category (CLI, AI/ML Framework, SDK), tech stack pills, license risks, and production readiness scores (1-100).
-
-5. **💻 Modern React 19 + Tailwind Dashboard:**
-   - Client-side sorting, language pills, instant search, responsive snapshot cards, and an in-app viewer for Supabase Storage READMEs.
-   - Deployed on **Vercel** with sub-second page loads.
+4. **💻 Modern React 19 + Tailwind Dashboard:**
+   - Real-time search, multi-column sorting, language filtering, live snapshot views, and direct repository links.
+   - Deployed on **Vercel** with sub-second page loads: [https://github-trend-tracker-v2.vercel.app](https://github-trend-tracker-v2.vercel.app)
 
 ---
 
@@ -45,22 +45,6 @@ $$\text{Trending Power Score} = \sum_{s \in \text{Snapshots}} \left( (26 - \text
 - $\alpha \log_{10}(\text{Stars})$: Sub-linear baseline credibility dampener.
 
 Implemented natively in PostgreSQL via `CREATE MATERIALIZED VIEW public.mv_all_time_leaderboard`.
-
----
-
-## 🗄️ Database & Supabase Storage Setup
-
-### 1-Click Supabase Initialization:
-1. Open your Supabase Project: [https://supabase.com/dashboard/project/gnpauzccwwndavoqddzv/sql](https://supabase.com/dashboard/project/gnpauzccwwndavoqddzv/sql)
-2. Copy the entire contents of [`supabase/schema.sql`](file:///c:/Users/worka/Desktop/test/github-trend-tracker-v2/supabase/schema.sql).
-3. Paste into the SQL Editor and click **Run**.
-4. This script automatically:
-   - Creates the `repositories` table with relational foreign keys.
-   - Creates the `trending_snapshots` table.
-   - Creates high-performance indexes.
-   - Creates the `mv_all_time_leaderboard` Materialized View.
-   - Creates and exposes the public Supabase Storage bucket `readmes`.
-   - Configures Row Level Security (RLS) policies for secure public access.
 
 ---
 
@@ -83,8 +67,13 @@ Ensure `.env` contains:
 ```ini
 SUPABASE_URL=https://gnpauzccwwndavoqddzv.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...
-SUPABASE_STORAGE_BUCKET=readmes
-GEMINI_API_KEY=your-gemini-api-key
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...
+
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+NVIDIA_MODEL=nvidia/nemotron-3-ultra-550b-a55b
+
+GEMINI_API_KEY=
 ```
 
 ### 2. Run the Ingestion Pipeline
@@ -95,10 +84,7 @@ uv sync
 # Run tests
 uv run pytest -v
 
-# Run dry-run (simulation without database writes)
-uv run python -m scraper.main --period all --dry-run
-
-# Run full ingestion (uploads READMEs to Storage & populates PostgreSQL)
+# Run live ingestion with NVIDIA Nemotron
 uv run python -m scraper.main --period all
 ```
 
@@ -115,33 +101,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ## 🌐 Deploy to Vercel
 
 ```bash
-# Install Vercel CLI (if not installed)
-npm i -g vercel
-
-# Deploy from repository root
 vercel deploy --prod
 ```
-The root `vercel.json` automatically orchestrates the subdirectory build:
-```json
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
-  "buildCommand": "npm --prefix dashboard run build",
-  "outputDirectory": "dashboard/dist",
-  "installCommand": "npm --prefix dashboard install"
-}
-```
 
----
-
-## 🤖 GitHub Actions Automated Ingestion
-
-The repository includes `.github/workflows/automate.yml` which triggers automatically every 6 hours (`0 */6 * * *`) via GitHub Actions.
-
-### Required GitHub Secrets:
-Add the following under **Settings ➔ Secrets and variables ➔ Actions**:
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (recommended for backend cron writes)
-- `GEMINI_API_KEY`
-
+Production Dashboard: [https://github-trend-tracker-v2.vercel.app](https://github-trend-tracker-v2.vercel.app)

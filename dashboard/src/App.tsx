@@ -3,7 +3,6 @@ import { Header } from './components/Header'
 import { LeaderboardTab } from './components/tabs/LeaderboardTab'
 import { SnapshotsTab } from './components/tabs/SnapshotsTab'
 import { CatalogTab } from './components/tabs/CatalogTab'
-import { ReadmeModal } from './components/ReadmeModal'
 import { supabase } from './lib/supabase'
 import type { ActiveTab, LeaderboardItem, TrendingSnapshot } from './types'
 
@@ -12,7 +11,6 @@ export default function App() {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardItem[]>([])
   const [snapshots, setSnapshots] = useState<TrendingSnapshot[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [modalReadme, setModalReadme] = useState<{ url: string; repoName: string } | null>(null)
 
   const fetchData = useCallback(async () => {
     setIsLoading(true)
@@ -42,7 +40,6 @@ export default function App() {
             language: r.language,
             stars_count: r.stars_count,
             forks_count: r.forks_count,
-            readme_storage_url: r.readme_storage_url,
             ai_specs: r.ai_specs,
             total_appearances: 1,
             peak_rank: 1,
@@ -61,7 +58,7 @@ export default function App() {
         .from('trending_snapshots')
         .select(`
           id, repo_id, rank, period, stars_today, recorded_at,
-          repositories ( repo_name, owner, name, description, language, stars_count, forks_count, readme_storage_url, ai_specs )
+          repositories ( repo_name, owner, name, description, language, stars_count, forks_count, ai_specs )
         `)
         .order('recorded_at', { ascending: false })
         .limit(100)
@@ -95,7 +92,6 @@ export default function App() {
           <LeaderboardTab
             data={leaderboardData}
             isLoading={isLoading}
-            onSelectReadme={(url, name) => setModalReadme({ url, repoName: name })}
           />
         )}
 
@@ -103,7 +99,6 @@ export default function App() {
           <SnapshotsTab
             snapshots={snapshots}
             isLoading={isLoading}
-            onSelectReadme={(url, name) => setModalReadme({ url, repoName: name })}
           />
         )}
 
@@ -111,20 +106,12 @@ export default function App() {
           <CatalogTab
             repos={leaderboardData}
             isLoading={isLoading}
-            onSelectReadme={(url, name) => setModalReadme({ url, repoName: name })}
           />
         )}
       </main>
 
-      {/* Modal for Raw README from Supabase Storage */}
-      <ReadmeModal
-        url={modalReadme?.url ?? null}
-        repoName={modalReadme?.repoName ?? null}
-        onClose={() => setModalReadme(null)}
-      />
-
       <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        GitHub Trend Tracker V2 · Relational PostgreSQL · Supabase Storage · Gemini 2.5 Flash
+        GitHub Trend Tracker V2 · Relational PostgreSQL · NVIDIA Nemotron 550B AI · Zero-Storage Architecture
       </footer>
     </div>
   )

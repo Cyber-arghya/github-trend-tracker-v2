@@ -5,13 +5,11 @@ import type { TrendingSnapshot } from '../../types'
 interface SnapshotsTabProps {
   snapshots: TrendingSnapshot[]
   isLoading: boolean
-  onSelectReadme?: (url: string, repoName: string) => void
 }
 
 export const SnapshotsTab: React.FC<SnapshotsTabProps> = ({
   snapshots,
   isLoading,
-  onSelectReadme,
 }) => {
   const [activePeriod, setActivePeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily')
 
@@ -102,14 +100,15 @@ export const SnapshotsTab: React.FC<SnapshotsTabProps> = ({
                     </span>
                   </div>
 
-                  {repo?.readme_storage_url && onSelectReadme && (
-                    <button
-                      onClick={() => onSelectReadme(repo.readme_storage_url!, repo.repo_name)}
-                      className="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
-                    >
-                      README
-                    </button>
-                  )}
+                  <a
+                    href={`https://github.com/${repo?.repo_name || ''}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors flex items-center gap-1"
+                  >
+                    <span>GitHub</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
               </div>
             )
@@ -123,4 +122,3 @@ export const SnapshotsTab: React.FC<SnapshotsTabProps> = ({
     </div>
   )
 }
-

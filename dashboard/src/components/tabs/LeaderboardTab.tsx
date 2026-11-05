@@ -7,13 +7,11 @@ type SortField = 'all_time_rank' | 'trending_power_score' | 'stars_count' | 'rep
 interface LeaderboardTabProps {
   data: LeaderboardItem[]
   isLoading: boolean
-  onSelectReadme?: (url: string, repoName: string) => void
 }
 
 export const LeaderboardTab: React.FC<LeaderboardTabProps> = ({
   data,
   isLoading,
-  onSelectReadme,
 }) => {
   const [sortField, setSortField] = useState<SortField>('all_time_rank')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
@@ -146,7 +144,7 @@ export const LeaderboardTab: React.FC<LeaderboardTabProps> = ({
                   <ArrowUpDown className="w-3.5 h-3.5" />
                 </button>
               </th>
-              <th className="px-4 py-3">Storage / AI</th>
+              <th className="px-4 py-3">AI Intelligence</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
@@ -243,21 +241,18 @@ export const LeaderboardTab: React.FC<LeaderboardTabProps> = ({
                       </div>
                     </td>
 
-                    {/* Storage / AI Actions */}
+                    {/* AI Actions */}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {row.ai_specs?.architecture_type && (
-                          <span className="px-2 py-0.5 text-[10px] rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 whitespace-nowrap">
+                          <span className="px-2.5 py-1 text-xs font-medium rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 whitespace-nowrap">
                             {row.ai_specs.architecture_type}
                           </span>
                         )}
-                        {row.readme_storage_url && onSelectReadme && (
-                          <button
-                            onClick={() => onSelectReadme(row.readme_storage_url!, row.repo_name)}
-                            className="px-2 py-0.5 text-[10px] rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
-                          >
-                            README
-                          </button>
+                        {row.ai_specs?.production_score && (
+                          <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-slate-300 border border-slate-700">
+                            {row.ai_specs.production_score}/100
+                          </span>
                         )}
                       </div>
                     </td>
