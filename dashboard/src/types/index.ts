@@ -7,7 +7,7 @@ export interface AISpecs {
   quick_start_command?: string
 }
 
-export interface LeaderboardItem {
+export interface UnifiedRepoItem {
   repo_id: string
   repo_name: string
   owner: string
@@ -16,7 +16,6 @@ export interface LeaderboardItem {
   language?: string
   stars_count: number
   forks_count: number
-  readme_storage_url?: string
   ai_specs?: AISpecs
   first_seen_at?: string
   last_seen_at?: string
@@ -27,27 +26,9 @@ export interface LeaderboardItem {
   monthly_appearances: number
   trending_power_score: number
   all_time_rank: number
+  stars_today?: number
+  latest_period?: 'daily' | 'weekly' | 'monthly'
 }
 
-export interface TrendingSnapshot {
-  id: string
-  repo_id: string
-  rank: number
-  period: 'daily' | 'weekly' | 'monthly'
-  stars_today: number
-  recorded_at: string
-  repositories?: {
-    repo_name: string
-    owner: string
-    name: string
-    description?: string
-    language?: string
-    stars_count: number
-    forks_count: number
-    readme_storage_url?: string
-    ai_specs?: AISpecs
-  }
-}
-
-export type ActiveTab = 'leaderboard' | 'snapshots' | 'catalog'
-
+export type TimeFilter = 'all' | 'daily' | 'weekly' | 'monthly'
+export type SortOption = 'rank' | 'power_score' | 'growth_velocity' | 'stars'
