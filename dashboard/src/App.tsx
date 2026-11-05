@@ -107,11 +107,11 @@ export default function App() {
         onRefresh={fetchData}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+      <main className="flex-1 max-w-[1680px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
         <UnifiedTableView repos={repos} isLoading={isLoading} />
       </main>
 
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-900 bg-slate-950 py-3 text-center text-xs text-slate-500">
         GitHub Trend Tracker · VC Radar & AI Intelligence · Real-time Breakout Detection
       </footer>
     </div>
