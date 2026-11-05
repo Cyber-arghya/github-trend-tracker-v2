@@ -103,3 +103,4 @@ class DatabaseManager:
         except Exception as e:
             logger.warning("Could not refresh materialized view via RPC (may require table creation): %s", e)
             return False
+

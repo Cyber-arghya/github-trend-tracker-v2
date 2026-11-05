@@ -63,3 +63,4 @@ def test_parse_stars_today():
     assert TrendingCollector._parse_stars_today("140 stars today") == 140
     assert TrendingCollector._parse_stars_today("2,500 stars this week") == 2500
     assert TrendingCollector._parse_stars_today(None) == 0
+

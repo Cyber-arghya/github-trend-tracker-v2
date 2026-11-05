@@ -113,3 +113,4 @@ class IntelligenceEngine:
             production_score=75,
             quick_start_command=f"git clone https://github.com/{repo_name}.git",
         )
+

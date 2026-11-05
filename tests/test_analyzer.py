@@ -29,3 +29,4 @@ def test_heuristic_fallback_aiml():
     assert isinstance(analysis, RepoIntelligence)
     assert analysis.architecture_type == "AI/ML Framework"
     assert analysis.license_risk.startswith("Low")
+

@@ -22,3 +22,9 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+
+
+.vercel
+
+supabase/.temp/
+

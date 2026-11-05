@@ -135,3 +135,4 @@ DROP POLICY IF EXISTS "Allow public insert storage" ON storage.objects;
 CREATE POLICY "Allow public insert storage" ON storage.objects FOR INSERT TO public WITH CHECK (bucket_id = 'readmes');
 DROP POLICY IF EXISTS "Allow public update storage" ON storage.objects;
 CREATE POLICY "Allow public update storage" ON storage.objects FOR UPDATE TO public USING (bucket_id = 'readmes');
+

@@ -144,3 +144,4 @@ Add the following under **Settings ➔ Secrets and variables ➔ Actions**:
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (recommended for backend cron writes)
 - `GEMINI_API_KEY`
+

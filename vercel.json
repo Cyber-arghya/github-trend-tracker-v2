@@ -5,3 +5,4 @@
   "outputDirectory": "dashboard/dist",
   "installCommand": "npm --prefix dashboard install"
 }
+

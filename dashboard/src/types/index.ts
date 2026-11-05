@@ -50,3 +50,4 @@ export interface TrendingSnapshot {
 }
 
 export type ActiveTab = 'leaderboard' | 'snapshots' | 'catalog'
+

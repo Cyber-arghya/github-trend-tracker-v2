@@ -123,3 +123,4 @@ export const SnapshotsTab: React.FC<SnapshotsTabProps> = ({
     </div>
   )
 }
+
