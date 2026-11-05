@@ -15,17 +15,17 @@ export const Header: React.FC<HeaderProps> = ({
   onRefresh,
 }) => {
   return (
-    <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 w-full">
-      <div className="max-w-[1680px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
+    <header className="relative w-full border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md">
+      <div className="max-w-[1680px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
         <div className="flex items-center justify-between gap-4">
           {/* Brand */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-bold text-xs tracking-wider">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primary-600 via-primary-500 to-accent-500 flex items-center justify-center shadow-md shadow-primary-500/20 text-neutral-950 font-black text-xs tracking-wider">
               V2
             </div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">GitHub Trend Tracker</h1>
-              <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hidden sm:inline-block">
+              <h1 className="text-sm sm:text-base font-bold tracking-tight text-neutral-50">GitHub Trend Tracker</h1>
+              <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-primary-500/10 text-primary-400 border border-primary-500/20 hidden sm:inline-block">
                 VC Radar
               </span>
             </div>
@@ -33,14 +33,14 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick Stats & Refresh */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs text-slate-300">
-              <Database className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Tracked: <strong className="text-white">{totalTracked}</strong></span>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-800/80 border border-neutral-700/60 text-xs text-neutral-300">
+              <Database className="w-3.5 h-3.5 text-primary-400" />
+              <span>Tracked: <strong className="text-neutral-50">{totalTracked}</strong></span>
             </div>
 
             {breakoutCount > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 font-medium">
-                <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warning-500/10 border border-warning-500/30 text-xs text-warning-400 font-medium">
+                <Flame className="w-3.5 h-3.5 text-warning-400 animate-pulse" />
                 <span>Breakouts: <strong>{breakoutCount}</strong></span>
               </div>
             )}
@@ -48,10 +48,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-all disabled:opacity-50"
+              className="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-neutral-50 transition-all disabled:opacity-50"
               title="Refresh Live Data"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>

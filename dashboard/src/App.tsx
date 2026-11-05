@@ -99,7 +99,7 @@ export default function App() {
   }, [repos])
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans">
       <Header
         totalTracked={repos.length}
         breakoutCount={breakoutCount}
@@ -107,11 +107,11 @@ export default function App() {
         onRefresh={fetchData}
       />
 
-      <main className="flex-1 max-w-[1680px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+      <main className="flex-1 max-w-[1720px] w-full mx-auto px-3 sm:px-5 lg:px-6 py-2">
         <UnifiedTableView repos={repos} isLoading={isLoading} />
       </main>
 
-      <footer className="border-t border-slate-900 bg-slate-950 py-3 text-center text-xs text-slate-500">
+      <footer className="border-t border-neutral-900 bg-neutral-950 py-2.5 text-center text-xs text-neutral-500">
         GitHub Trend Tracker · VC Radar & AI Intelligence · Real-time Breakout Detection
       </footer>
     </div>

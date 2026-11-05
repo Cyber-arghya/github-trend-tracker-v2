@@ -6,13 +6,12 @@ import {
   ExternalLink,
   Flame,
   Zap,
-  ChevronDown,
-  ChevronUp,
   Terminal,
   Copy,
   Check,
   TrendingUp,
   Sparkles,
+  Code2,
 } from 'lucide-react'
 import type { UnifiedRepoItem, TimeFilter, SortOption } from '../types'
 
@@ -144,13 +143,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
   }
 
   return (
-    <div className="space-y-2.5 w-full">
-      {/* ─── Compact Filter Bar ─── */}
-      <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/90 rounded-xl p-3 space-y-2.5 shadow-sm">
-        {/* Row 1: Time Filters + Search + Language */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+    <div className="space-y-2 w-full">
+      {/* ─── Compact Filter Section (Non-sticky, naturally scrolls away) ─── */}
+      <div className="bg-neutral-900/90 backdrop-blur-md border border-neutral-800 rounded-xl p-2.5 sm:p-3 space-y-2 shadow-sm">
+        {/* Row 1: Time Filters + Search */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
           {/* Time Filter Pills */}
-          <div className="flex items-center gap-1 p-0.5 bg-slate-950 rounded-lg border border-slate-800/80 overflow-x-auto shrink-0">
+          <div className="flex items-center gap-1 p-0.5 bg-neutral-950 rounded-lg border border-neutral-800 shrink-0 overflow-x-auto">
             {(
               [
                 { id: 'all', label: 'All-Time' },
@@ -164,14 +163,14 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                 onClick={() => setTimeFilter(item.id)}
                 className={`px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
                   timeFilter === item.id
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    ? 'bg-primary-500 text-neutral-950 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
                 }`}
               >
                 <span>{item.label}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    timeFilter === item.id ? 'bg-indigo-700 text-white' : 'bg-slate-800 text-slate-400'
+                    timeFilter === item.id ? 'bg-primary-600 text-neutral-950 font-bold' : 'bg-neutral-800 text-neutral-400'
                   }`}
                 >
                   {timeCounts[item.id]}
@@ -180,37 +179,23 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
             ))}
           </div>
 
-          {/* Search Bar & Language Dropdown */}
-          <div className="flex items-center gap-2 flex-1 justify-end">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search repo, tech, or problem..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1 text-xs rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <select
-              value={languageFilter}
-              onChange={(e) => setLanguageFilter(e.target.value)}
-              className="px-2.5 py-1 text-xs rounded-lg bg-slate-950 border border-slate-800 text-slate-300 focus:outline-none focus:border-indigo-500 cursor-pointer shrink-0"
-            >
-              {languages.map((lang) => (
-                <option key={lang} value={lang}>
-                  {lang === 'all' ? `All Languages (${languageCounts.all})` : `${lang} (${languageCounts[lang]})`}
-                </option>
-              ))}
-            </select>
+          {/* Search Bar */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Search repo, tech stack, or problem..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1 text-xs rounded-lg bg-neutral-950 border border-neutral-800 text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-primary-500"
+            />
           </div>
         </div>
 
         {/* Row 2: Category Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-0.5 text-xs">
-          <span className="text-slate-500 text-[11px] font-medium shrink-0 flex items-center gap-1 mr-1">
-            <Filter className="w-3 h-3" />
+          <span className="text-neutral-400 text-[11px] font-semibold shrink-0 flex items-center gap-1 mr-1">
+            <Filter className="w-3 h-3 text-primary-400" />
             Category:
           </span>
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
@@ -220,8 +205,8 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                 onClick={() => setCategoryFilter(cat)}
                 className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
                   categoryFilter === cat
-                    ? 'bg-slate-200 text-slate-900 font-semibold'
-                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800/80'
+                    ? 'bg-neutral-200 text-neutral-900 font-bold shadow-sm'
+                    : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
                 }`}
               >
                 <span>{cat === 'all' ? 'All' : cat}</span>
@@ -230,48 +215,71 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
             ))}
           </div>
         </div>
+
+        {/* Row 3: Language Filter Pills directly below Category */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-0.5 text-xs border-t border-neutral-800/60">
+          <span className="text-neutral-400 text-[11px] font-semibold shrink-0 flex items-center gap-1 mr-1">
+            <Code2 className="w-3 h-3 text-primary-400" />
+            Language:
+          </span>
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+            {languages.map((lang) => (
+              <button
+                key={lang}
+                onClick={() => setLanguageFilter(lang)}
+                className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+                  languageFilter === lang
+                    ? 'bg-primary-500/20 text-primary-300 border border-primary-500/50 font-bold'
+                    : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
+                }`}
+              >
+                <span>{lang === 'all' ? 'All Languages' : lang}</span>
+                <span className="text-[10px] opacity-70 font-mono">({languageCounts[lang]})</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* ─── Expansive Full-Width Table Container ─── */}
-      <div className="w-full overflow-x-auto rounded-xl border border-slate-800/90 bg-slate-900/50 shadow-md">
-        <table className="w-full text-left text-xs text-slate-300">
-          <thead className="bg-slate-950/90 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+      {/* ─── Full-Width Table Container ─── */}
+      <div className="w-full overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900/60 shadow-md">
+        <table className="w-full text-left text-xs text-neutral-300">
+          {/* ONLY the Table Header Row is STICKY on scroll */}
+          <thead className="sticky top-0 z-30 bg-neutral-950 text-[11px] font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 shadow-sm">
             <tr>
               <th className="px-3.5 py-2.5 w-16 cursor-pointer select-none" onClick={() => toggleSort('rank')}>
-                <div className="flex items-center gap-1 hover:text-white">
+                <div className="flex items-center gap-1 hover:text-neutral-100">
                   <span>Rank</span>
-                  <TrendingUp className="w-3 h-3" />
+                  <TrendingUp className="w-3 h-3 text-primary-400" />
                 </div>
               </th>
-              <th className="px-3.5 py-2.5 min-w-[260px]">Repository</th>
+              <th className="px-3.5 py-2.5 min-w-[280px]">Repository</th>
               <th className="px-3.5 py-2.5 w-44 cursor-pointer select-none" onClick={() => toggleSort('growth_velocity')}>
-                <div className="flex items-center gap-1 hover:text-white">
+                <div className="flex items-center gap-1 hover:text-neutral-100">
                   <span>VC Radar (Velocity)</span>
-                  <Flame className="w-3 h-3 text-amber-400" />
+                  <Flame className="w-3 h-3 text-warning-400" />
                 </div>
               </th>
               <th className="px-3.5 py-2.5 w-32 cursor-pointer select-none" onClick={() => toggleSort('power_score')}>
-                <div className="flex items-center gap-1 hover:text-white">
+                <div className="flex items-center gap-1 hover:text-neutral-100">
                   <span>Power Score</span>
                 </div>
               </th>
               <th className="px-3.5 py-2.5 w-16">Peak</th>
               <th className="px-3.5 py-2.5 w-28 cursor-pointer select-none" onClick={() => toggleSort('stars')}>
-                <div className="flex items-center gap-1 hover:text-white">
+                <div className="flex items-center gap-1 hover:text-neutral-100">
                   <span>Total Stars</span>
                 </div>
               </th>
-              <th className="px-3.5 py-2.5 w-36">Architecture</th>
-              <th className="px-3.5 py-2.5 w-24">Readiness</th>
-              <th className="px-3.5 py-2.5 w-24 text-right">AI Insights</th>
+              <th className="px-3.5 py-2.5 w-40">Architecture</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/50">
+          <tbody className="divide-y divide-neutral-800/60">
             {isLoading && repos.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-16 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-16 text-center text-neutral-500">
                   <div className="flex items-center justify-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-500" />
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500" />
                     <span>Loading trending repositories...</span>
                   </div>
                 </td>
@@ -285,27 +293,28 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                 const isSurging = starsToday >= 500 && starsToday < 1000
                 const prodScore = row.ai_specs?.production_score || 75
 
-                let rankBadge = 'bg-slate-800 text-slate-300'
+                let rankBadge = 'bg-neutral-800 text-neutral-300'
                 let rankIcon = null
                 if (rank === 1) {
-                  rankBadge = 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                  rankBadge = 'bg-warning-500/20 text-warning-400 border border-warning-500/40'
                   rankIcon = '🥇'
                 } else if (rank === 2) {
-                  rankBadge = 'bg-slate-300/20 text-slate-200 border border-slate-300/40'
+                  rankBadge = 'bg-neutral-300/20 text-neutral-200 border border-neutral-300/40'
                   rankIcon = '🥈'
                 } else if (rank === 3) {
-                  rankBadge = 'bg-amber-700/20 text-amber-500 border border-amber-700/40'
+                  rankBadge = 'bg-warning-700/20 text-warning-500 border border-warning-700/40'
                   rankIcon = '🥉'
                 }
 
                 return (
                   <React.Fragment key={row.repo_id}>
-                    {/* Main Row */}
+                    {/* Main Row: Click anywhere to expand/collapse AI intelligence card */}
                     <tr
-                      className={`hover:bg-slate-800/50 transition-colors cursor-pointer group ${
-                        isExpanded ? 'bg-slate-800/30' : ''
+                      className={`hover:bg-neutral-800/50 transition-colors cursor-pointer group ${
+                        isExpanded ? 'bg-neutral-800/40' : ''
                       }`}
                       onClick={() => toggleExpand(row.repo_id)}
+                      title="Click to view AI Intelligence Specs"
                     >
                       {/* Rank */}
                       <td className="px-3.5 py-2.5 font-mono font-bold whitespace-nowrap">
@@ -322,55 +331,56 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="font-bold text-slate-100 hover:text-indigo-400 hover:underline flex items-center gap-1.5 text-xs sm:text-sm"
+                            className="font-bold text-neutral-100 hover:text-primary-400 hover:underline flex items-center gap-1.5 text-xs sm:text-sm"
+                            title="Open repository on GitHub"
                           >
                             <span>{row.repo_name}</span>
-                            <ExternalLink className="w-3 h-3 text-slate-500 hover:text-indigo-400 shrink-0" />
+                            <ExternalLink className="w-3 h-3 text-neutral-500 hover:text-primary-400 shrink-0" />
                           </a>
                           {row.language && (
-                            <span className="px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+                            <span className="px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300">
                               {row.language}
                             </span>
                           )}
                         </div>
                         {row.description && (
-                          <p className="text-[11px] text-slate-400 truncate mt-0.5">{row.description}</p>
+                          <p className="text-[11px] text-neutral-400 truncate mt-0.5">{row.description}</p>
                         )}
                       </td>
 
                       {/* VC Radar / Velocity */}
                       <td className="px-3.5 py-2.5 whitespace-nowrap">
                         {isBreakout ? (
-                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-500/10 text-red-400 border border-red-500/30 font-semibold font-mono text-[11px]">
-                            <Flame className="w-3 h-3 text-red-400 animate-pulse" />
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-error-500/10 text-error-400 border border-error-500/30 font-semibold font-mono text-[11px]">
+                            <Flame className="w-3 h-3 text-error-400 animate-pulse" />
                             <span>+{starsToday.toLocaleString()}/day</span>
-                            <span className="px-1 py-0.2 text-[9px] bg-red-500/20 rounded uppercase tracking-wider font-sans font-bold">
+                            <span className="px-1 py-0.2 text-[9px] bg-error-500/20 rounded uppercase tracking-wider font-sans font-bold">
                               Breakout
                             </span>
                           </div>
                         ) : isSurging ? (
-                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono text-[11px]">
-                            <Zap className="w-3 h-3 text-amber-400" />
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-warning-500/10 text-warning-400 border border-warning-500/20 font-mono text-[11px]">
+                            <Zap className="w-3 h-3 text-warning-400" />
                             <span>+{starsToday.toLocaleString()}/day</span>
                           </div>
                         ) : starsToday > 0 ? (
-                          <span className="font-mono text-slate-300 text-[11px]">
+                          <span className="font-mono text-neutral-300 text-[11px]">
                             +{starsToday.toLocaleString()}/day
                           </span>
                         ) : (
-                          <span className="text-slate-500 text-[11px] font-mono">—</span>
+                          <span className="text-neutral-500 text-[11px] font-mono">—</span>
                         )}
                       </td>
 
                       {/* Power Score */}
                       <td className="px-3.5 py-2.5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-amber-400">
+                          <span className="font-mono text-xs font-bold text-warning-400">
                             {row.trending_power_score.toFixed(1)}
                           </span>
-                          <div className="w-12 h-1.5 bg-slate-800 rounded-full overflow-hidden hidden sm:block">
+                          <div className="w-12 h-1.5 bg-neutral-800 rounded-full overflow-hidden hidden sm:block">
                             <div
-                              className="h-full bg-gradient-to-r from-indigo-500 to-amber-400 rounded-full"
+                              className="h-full bg-gradient-to-r from-primary-500 to-warning-400 rounded-full"
                               style={{ width: `${Math.min(row.trending_power_score, 100)}%` }}
                             />
                           </div>
@@ -379,82 +389,54 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
 
                       {/* Peak Rank */}
                       <td className="px-3.5 py-2.5 whitespace-nowrap">
-                        <span className="px-1.5 py-0.2 rounded bg-slate-800/80 text-[10px] font-mono font-medium text-emerald-400 border border-slate-700/50">
+                        <span className="px-1.5 py-0.2 rounded bg-neutral-800/80 text-[10px] font-mono font-medium text-success-400 border border-neutral-700/50">
                           #{row.peak_rank}
                         </span>
                       </td>
 
                       {/* Total Stars */}
-                      <td className="px-3.5 py-2.5 whitespace-nowrap font-mono text-slate-300">
+                      <td className="px-3.5 py-2.5 whitespace-nowrap font-mono text-neutral-300">
                         <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 text-amber-400 fill-amber-400/20" />
+                          <Star className="w-3 h-3 text-warning-400 fill-warning-400/20" />
                           <span>{row.stars_count.toLocaleString()}</span>
                         </div>
                       </td>
 
                       {/* Architecture */}
                       <td className="px-3.5 py-2.5 whitespace-nowrap">
-                        <span className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-primary-500/10 text-primary-300 border border-primary-500/20">
                           {row.ai_specs?.architecture_type || 'Full-Stack App'}
                         </span>
                       </td>
-
-                      {/* Readiness */}
-                      <td className="px-3.5 py-2.5 whitespace-nowrap font-mono">
-                        <span
-                          className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                            prodScore >= 85
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}
-                        >
-                          {prodScore}/100
-                        </span>
-                      </td>
-
-                      {/* Expand Toggle */}
-                      <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleExpand(row.repo_id)
-                          }}
-                          className="px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors inline-flex items-center gap-1 text-[11px]"
-                        >
-                          <Sparkles className="w-3 h-3 text-indigo-400" />
-                          <span>{isExpanded ? 'Hide' : 'AI'}</span>
-                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        </button>
-                      </td>
                     </tr>
 
-                    {/* ─── Expandable AI Intelligence Card (In-Place) ─── */}
+                    {/* ─── Expandable AI Intelligence Card (Full Width, In-Place) ─── */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={9} className="p-0 bg-slate-950/90 border-b border-indigo-500/30">
-                          <div className="p-4 sm:p-5 space-y-3 max-w-6xl mx-auto animate-in fade-in duration-150">
-                            {/* Card Header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+                        <td colSpan={7} className="p-0 bg-neutral-950 border-y border-primary-500/30">
+                          <div className="w-full px-4 sm:px-6 py-4 space-y-3.5 animate-in fade-in duration-150">
+                            {/* Card Header: Repo title, Category, Readiness, and GitHub button */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-neutral-800">
                               <div className="flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-indigo-400" />
-                                <h4 className="font-bold text-white text-sm">
+                                <Sparkles className="w-4 h-4 text-primary-400" />
+                                <h4 className="font-bold text-neutral-50 text-sm">
                                   {row.repo_name}
                                 </h4>
-                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-primary-500/10 text-primary-300 border border-primary-500/20">
                                   {row.ai_specs?.architecture_type || 'Full-Stack App'}
                                 </span>
                               </div>
 
                               <div className="flex items-center gap-2">
-                                <span className="text-slate-400 text-xs">Readiness:</span>
-                                <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-slate-800 text-emerald-400 border border-slate-700">
+                                <span className="text-neutral-400 text-xs font-medium">Readiness:</span>
+                                <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-neutral-800 text-success-400 border border-neutral-700">
                                   {prodScore}/100
                                 </span>
                                 <a
                                   href={`https://github.com/${row.repo_name}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="ml-2 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+                                  className="ml-2 px-3 py-1 rounded-lg bg-primary-600 hover:bg-primary-500 text-neutral-950 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
                                 >
                                   <span>Open on GitHub</span>
                                   <ExternalLink className="w-3 h-3" />
@@ -464,10 +446,10 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
 
                             {/* Value Proposition */}
                             <div>
-                              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
                                 Value Proposition:
                               </span>
-                              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                              <p className="text-xs sm:text-sm text-neutral-200 leading-relaxed bg-neutral-900/80 p-3 rounded-xl border border-neutral-800">
                                 "{row.ai_specs?.key_value_proposition || row.description || 'No summary available.'}"
                               </p>
                             </div>
@@ -475,12 +457,12 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                             {/* Tech Stack Pills & License */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                               <div>
-                                <span className="text-slate-400 text-[11px] font-medium mr-2">Tech Stack:</span>
+                                <span className="text-neutral-400 text-[11px] font-medium mr-2">Tech Stack:</span>
                                 <div className="inline-flex flex-wrap gap-1 mt-1 sm:mt-0">
                                   {(row.ai_specs?.tech_stack || [row.language || 'Open Source']).map((tech, idx) => (
                                     <span
                                       key={idx}
-                                      className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700 text-[10px]"
+                                      className="px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-300 border border-neutral-700 text-[10px]"
                                     >
                                       {tech}
                                     </span>
@@ -488,25 +470,28 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                                 </div>
                               </div>
 
-                              <div className="text-slate-400 text-[11px]">
-                                License: <strong className="text-slate-200">{row.ai_specs?.license_risk || 'Low (MIT/Apache 2.0)'}</strong>
+                              <div className="text-neutral-400 text-[11px]">
+                                License: <strong className="text-neutral-200">{row.ai_specs?.license_risk || 'Low (Standard OSS)'}</strong>
                               </div>
                             </div>
 
                             {/* Quick Start Command */}
                             {row.ai_specs?.quick_start_command && (
-                              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 font-mono text-xs text-slate-300">
+                              <div className="flex items-center justify-between p-2 rounded-lg bg-neutral-900 border border-neutral-800 font-mono text-xs text-neutral-300">
                                 <div className="flex items-center gap-2 overflow-x-auto">
-                                  <Terminal className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                  <Terminal className="w-3.5 h-3.5 text-primary-400 shrink-0" />
                                   <span className="truncate">{row.ai_specs.quick_start_command}</span>
                                 </div>
                                 <button
-                                  onClick={() => handleCopy(row.ai_specs!.quick_start_command!, row.repo_id)}
-                                  className="ml-2 p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleCopy(row.ai_specs!.quick_start_command!, row.repo_id)
+                                  }}
+                                  className="ml-2 p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-neutral-100 transition-colors shrink-0"
                                   title="Copy Command"
                                 >
                                   {copiedId === row.repo_id ? (
-                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    <Check className="w-3.5 h-3.5 text-success-400" />
                                   ) : (
                                     <Copy className="w-3.5 h-3.5" />
                                   )}
@@ -522,7 +507,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
               })
             ) : (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-12 text-center text-neutral-500">
                   No repositories found matching your filter criteria.
                 </td>
               </tr>
