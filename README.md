@@ -105,3 +105,11 @@ vercel deploy --prod
 ```
 
 Production Dashboard: [https://github-trend-tracker-v2.vercel.app](https://github-trend-tracker-v2.vercel.app)
+
+---
+
+## 🤖 Automated Cron Ingestion (VC Radar)
+
+GitHub Actions automatically runs the scraper pipeline **6 times every 24 hours (every 4 hours)** via `.github/workflows/automate.yml`:
+- **Schedule:** `0 */4 * * *` (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC)
+- Captures new breakout repos and updates star velocity metrics.
