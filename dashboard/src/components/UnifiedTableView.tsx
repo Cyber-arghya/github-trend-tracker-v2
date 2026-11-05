@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Sparkles,
   Code2,
+  RotateCcw,
 } from 'lucide-react'
 import type { UnifiedRepoItem, TimeFilter, SortOption } from '../types'
 
@@ -29,40 +30,126 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
   const [expandedRepoId, setExpandedRepoId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  // 1. Dynamic Counts: Time-wise
-  const timeCounts = useMemo(() => {
-    return {
-      all: repos.length,
-      daily: repos.filter((r) => r.daily_appearances > 0).length,
-      weekly: repos.filter((r) => r.weekly_appearances > 0).length,
-      monthly: repos.filter((r) => r.monthly_appearances > 0).length,
-    }
+  // Master list of all distinct categories & languages in dataset
+  const allCategories = useMemo(() => {
+    const set = new Set<string>()
+    repos.forEach((r) => {
+      set.add(r.ai_specs?.architecture_type || 'Full-Stack App')
+    })
+    return ['all', ...Array.from(set)]
   }, [repos])
 
-  // 2. Dynamic Counts: Category-wise
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: repos.length }
+  const allLanguages = useMemo(() => {
+    const set = new Set<string>()
     repos.forEach((r) => {
+      if (r.language) set.add(r.language)
+    })
+    return ['all', ...Array.from(set)]
+  }, [repos])
+
+  // 1. Coordinated Time Counts (matching current category & language)
+  const timeCounts = useMemo(() => {
+    const base = repos.filter((r) => {
+      if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) return false
+      if (languageFilter !== 'all' && r.language !== languageFilter) return false
+      return true
+    })
+    return {
+      all: base.length,
+      daily: base.filter((r) => r.daily_appearances > 0).length,
+      weekly: base.filter((r) => r.weekly_appearances > 0).length,
+      monthly: base.filter((r) => r.monthly_appearances > 0).length,
+    }
+  }, [repos, categoryFilter, languageFilter])
+
+  // 2. Coordinated Category Counts (matching current time & language)
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: 0 }
+    allCategories.forEach((c) => {
+      counts[c] = 0
+    })
+
+    const matching = repos.filter((r) => {
+      if (timeFilter === 'daily' && r.daily_appearances === 0) return false
+      if (timeFilter === 'weekly' && r.weekly_appearances === 0) return false
+      if (timeFilter === 'monthly' && r.monthly_appearances === 0) return false
+      if (languageFilter !== 'all' && r.language !== languageFilter) return false
+      return true
+    })
+
+    counts.all = matching.length
+    matching.forEach((r) => {
       const cat = r.ai_specs?.architecture_type || 'Full-Stack App'
       counts[cat] = (counts[cat] || 0) + 1
     })
     return counts
-  }, [repos])
+  }, [repos, timeFilter, languageFilter, allCategories])
 
-  const categories = useMemo(() => Object.keys(categoryCounts), [categoryCounts])
-
-  // 3. Dynamic Counts: Language-wise
+  // 3. Coordinated Language Counts (matching current time & category)
   const languageCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: repos.length }
-    repos.forEach((r) => {
+    const counts: Record<string, number> = { all: 0 }
+    allLanguages.forEach((l) => {
+      counts[l] = 0
+    })
+
+    const matching = repos.filter((r) => {
+      if (timeFilter === 'daily' && r.daily_appearances === 0) return false
+      if (timeFilter === 'weekly' && r.weekly_appearances === 0) return false
+      if (timeFilter === 'monthly' && r.monthly_appearances === 0) return false
+      if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) return false
+      return true
+    })
+
+    counts.all = matching.length
+    matching.forEach((r) => {
       if (r.language) {
         counts[r.language] = (counts[r.language] || 0) + 1
       }
     })
     return counts
-  }, [repos])
+  }, [repos, timeFilter, categoryFilter, allLanguages])
 
-  const languages = useMemo(() => Object.keys(languageCounts), [languageCounts])
+  // Smart filter click handlers: toggle off if already active, or auto-coordinate
+  const handleCategoryClick = (cat: string) => {
+    if (categoryFilter === cat) {
+      setCategoryFilter('all')
+      return
+    }
+    // If selecting a category that has 0 matches for the current language, reset language to 'all'
+    if (cat !== 'all' && languageFilter !== 'all') {
+      const hasMatch = repos.some(
+        (r) => (r.ai_specs?.architecture_type || 'Full-Stack App') === cat && r.language === languageFilter
+      )
+      if (!hasMatch) {
+        setLanguageFilter('all')
+      }
+    }
+    setCategoryFilter(cat)
+  }
+
+  const handleLanguageClick = (lang: string) => {
+    if (languageFilter === lang) {
+      setLanguageFilter('all')
+      return
+    }
+    // If selecting a language that has 0 matches for the current category, reset category to 'all'
+    if (lang !== 'all' && categoryFilter !== 'all') {
+      const hasMatch = repos.some(
+        (r) => r.language === lang && (r.ai_specs?.architecture_type || 'Full-Stack App') === categoryFilter
+      )
+      if (!hasMatch) {
+        setCategoryFilter('all')
+      }
+    }
+    setLanguageFilter(lang)
+  }
+
+  const handleResetFilters = () => {
+    setTimeFilter('all')
+    setCategoryFilter('all')
+    setLanguageFilter('all')
+    setSearchQuery('')
+  }
 
   // 4. Filtering and Sorting
   const filteredRepos = useMemo(() => {
@@ -215,51 +302,63 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
           </div>
         </div>
 
-        {/* Row 2: Category Filter Pills */}
+        {/* Row 2: Category Filter Pills (Coordinated) */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-0.5 text-xs">
           <span className="text-neutral-400 text-[11px] font-semibold shrink-0 flex items-center gap-1 mr-1">
             <Filter className="w-3 h-3 text-primary-400" />
             Category:
           </span>
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setCategoryFilter(cat)}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
-                  categoryFilter === cat
-                    ? 'bg-neutral-200 text-neutral-900 font-bold shadow-sm'
-                    : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
-                }`}
-              >
-                <span>{cat === 'all' ? 'All' : cat}</span>
-                <span className="text-[10px] opacity-70 font-mono">({categoryCounts[cat]})</span>
-              </button>
-            ))}
+            {allCategories.map((cat) => {
+              const count = categoryCounts[cat] || 0
+              const isActive = categoryFilter === cat
+              return (
+                <button
+                  key={cat}
+                  onClick={() => handleCategoryClick(cat)}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+                    isActive
+                      ? 'bg-neutral-200 text-neutral-900 font-bold shadow-sm'
+                      : count === 0
+                      ? 'bg-neutral-950/40 text-neutral-600 border border-neutral-800/40 hover:text-neutral-400'
+                      : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
+                  }`}
+                >
+                  <span>{cat === 'all' ? 'All' : cat}</span>
+                  <span className="text-[10px] opacity-70 font-mono">({count})</span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        {/* Row 3: Language Filter Pills directly below Category */}
+        {/* Row 3: Language Filter Pills directly below Category (Coordinated) */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-0.5 text-xs border-t border-neutral-800/60">
           <span className="text-neutral-400 text-[11px] font-semibold shrink-0 flex items-center gap-1 mr-1">
             <Code2 className="w-3 h-3 text-primary-400" />
             Language:
           </span>
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-            {languages.map((lang) => (
-              <button
-                key={lang}
-                onClick={() => setLanguageFilter(lang)}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
-                  languageFilter === lang
-                    ? 'bg-primary-500/20 text-primary-300 border border-primary-500/50 font-bold'
-                    : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
-                }`}
-              >
-                <span>{lang === 'all' ? 'All Languages' : lang}</span>
-                <span className="text-[10px] opacity-70 font-mono">({languageCounts[lang]})</span>
-              </button>
-            ))}
+            {allLanguages.map((lang) => {
+              const count = languageCounts[lang] || 0
+              const isActive = languageFilter === lang
+              return (
+                <button
+                  key={lang}
+                  onClick={() => handleLanguageClick(lang)}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+                    isActive
+                      ? 'bg-primary-500/20 text-primary-300 border border-primary-500/50 font-bold'
+                      : count === 0
+                      ? 'bg-neutral-950/40 text-neutral-600 border border-neutral-800/40 hover:text-neutral-400'
+                      : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
+                  }`}
+                >
+                  <span>{lang === 'all' ? 'All Languages' : lang}</span>
+                  <span className="text-[10px] opacity-70 font-mono">({count})</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -280,12 +379,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
             <th className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 min-w-[280px] border-b border-neutral-800">
               Repository
             </th>
+            {/* Short name for Velocity */}
             <th
-              className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 w-44 cursor-pointer select-none border-b border-neutral-800"
+              className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 w-36 cursor-pointer select-none border-b border-neutral-800"
               onClick={() => toggleSort('growth_velocity')}
             >
               <div className="flex items-center gap-1 hover:text-neutral-100">
-                <span>VC Radar (Velocity)</span>
+                <span>Velocity</span>
                 <Flame className="w-3 h-3 text-warning-400" />
               </div>
             </th>
@@ -348,13 +448,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
 
               return (
                 <React.Fragment key={row.repo_id}>
-                  {/* Main Row: Click anywhere to expand/collapse AI intelligence card */}
+                  {/* Main Row: Click anywhere for AI specs, NO description in main row */}
                   <tr
                     className={`hover:bg-neutral-800/50 transition-colors cursor-pointer group ${
                       isExpanded ? 'bg-neutral-800/40' : ''
                     }`}
                     onClick={() => toggleExpand(row.repo_id)}
-                    title="Click to view AI Intelligence Specs"
+                    title="Click row to view AI intelligence specs"
                   >
                     {/* Rank */}
                     <td className="px-3.5 py-2.5 font-mono font-bold whitespace-nowrap">
@@ -363,7 +463,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                       </span>
                     </td>
 
-                    {/* Repository Name & Description */}
+                    {/* Repository: Name & language tag ONLY (Description removed per request) */}
                     <td className="px-3.5 py-2.5 max-w-sm sm:max-w-md">
                       <div className="flex items-center gap-2">
                         <a
@@ -383,43 +483,49 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                           </span>
                         )}
                       </div>
-                      {row.description && (
-                        <p className="text-[11px] text-neutral-400 truncate mt-0.5">{row.description}</p>
-                      )}
                     </td>
 
-                    {/* VC Radar / Velocity: Vertical stack (number on top, badge underneath) */}
+                    {/* Velocity: Clean stars/day with compact alert tag for notification setup */}
                     <td className="px-3.5 py-2.5 whitespace-nowrap">
-                      {isBreakout ? (
-                        <div className="flex flex-col items-start gap-0.5">
-                          <span className="font-mono text-xs font-bold text-error-400">
-                            +{starsToday.toLocaleString()}/day
+                      <div
+                        className="flex items-center gap-1.5 whitespace-nowrap"
+                        data-notification-status={isBreakout ? 'breakout' : isSurging ? 'surge' : 'normal'}
+                      >
+                        <span
+                          className={`font-mono text-xs font-bold ${
+                            isBreakout
+                              ? 'text-error-400'
+                              : isSurging
+                              ? 'text-warning-400'
+                              : starsToday > 0
+                              ? 'text-neutral-200'
+                              : 'text-neutral-500'
+                          }`}
+                        >
+                          {starsToday > 0 ? `+${starsToday.toLocaleString()}/day` : '—'}
+                        </span>
+
+                        {/* Future Notification System Trigger Tag */}
+                        {isBreakout && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold rounded bg-error-500/20 text-error-400 border border-error-500/30"
+                            title="Breakout Repo (>1000 stars/day) - Notification Target"
+                          >
+                            🔥
                           </span>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 text-[9px] font-bold rounded bg-error-500/20 text-error-400 border border-error-500/30 uppercase tracking-wider">
-                            🔥 Breakout
+                        )}
+                        {isSurging && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold rounded bg-warning-500/20 text-warning-400 border border-warning-500/30"
+                            title="Surging Repo (>500 stars/day) - Notification Target"
+                          >
+                            ⚡
                           </span>
-                        </div>
-                      ) : isSurging ? (
-                        <div className="flex flex-col items-start gap-0.5">
-                          <span className="font-mono text-xs font-semibold text-warning-400">
-                            +{starsToday.toLocaleString()}/day
-                          </span>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 text-[9px] font-bold rounded bg-warning-500/20 text-warning-400 border border-warning-500/30 uppercase tracking-wider">
-                            ⚡ Surge
-                          </span>
-                        </div>
-                      ) : starsToday > 0 ? (
-                        <div className="flex flex-col items-start">
-                          <span className="font-mono text-xs text-neutral-300">
-                            +{starsToday.toLocaleString()}/day
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-neutral-500 text-xs font-mono">—</span>
-                      )}
+                        )}
+                      </div>
                     </td>
 
-                    {/* Power Score: Dynamic red-to-green gradient depending on score */}
+                    {/* Power Score: Red-to-green gradient depending on score */}
                     <td className="px-3.5 py-2.5 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className={`font-mono text-xs font-bold ${scoreStyle.text}`}>
@@ -555,7 +661,16 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
           ) : (
             <tr>
               <td colSpan={7} className="px-4 py-12 text-center text-neutral-500">
-                No repositories found matching your filter criteria.
+                <div className="flex flex-col items-center justify-center gap-2.5">
+                  <p>No repositories found matching your filter criteria.</p>
+                  <button
+                    onClick={handleResetFilters}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold border border-neutral-700 transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset All Filters</span>
+                  </button>
+                </div>
               </td>
             </tr>
           )}
