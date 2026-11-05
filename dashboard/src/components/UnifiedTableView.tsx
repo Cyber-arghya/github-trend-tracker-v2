@@ -47,7 +47,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     return ['all', ...Array.from(set)]
   }, [repos])
 
-  // 1. Coordinated Time Counts (matching current category & language)
+  // 1. Coordinated Time Counts
   const timeCounts = useMemo(() => {
     const base = repos.filter((r) => {
       if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) return false
@@ -62,7 +62,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     }
   }, [repos, categoryFilter, languageFilter])
 
-  // 2. Coordinated Category Counts (matching current time & language)
+  // 2. Coordinated Category Counts
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { all: 0 }
     allCategories.forEach((c) => {
@@ -85,7 +85,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     return counts
   }, [repos, timeFilter, languageFilter, allCategories])
 
-  // 3. Coordinated Language Counts (matching current time & category)
+  // 3. Coordinated Language Counts
   const languageCounts = useMemo(() => {
     const counts: Record<string, number> = { all: 0 }
     allLanguages.forEach((l) => {
@@ -115,7 +115,6 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       setCategoryFilter('all')
       return
     }
-    // If selecting a category that has 0 matches for the current language, reset language to 'all'
     if (cat !== 'all' && languageFilter !== 'all') {
       const hasMatch = repos.some(
         (r) => (r.ai_specs?.architecture_type || 'Full-Stack App') === cat && r.language === languageFilter
@@ -132,7 +131,6 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       setLanguageFilter('all')
       return
     }
-    // If selecting a language that has 0 matches for the current category, reset category to 'all'
     if (lang !== 'all' && categoryFilter !== 'all') {
       const hasMatch = repos.some(
         (r) => r.language === lang && (r.ai_specs?.architecture_type || 'Full-Stack App') === categoryFilter
@@ -153,26 +151,21 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
 
   // 4. Filtering and Sorting
   const filteredRepos = useMemo(() => {
-    // Sanitize search query: strip full github url if pasted
     let cleanQuery = searchQuery.trim().toLowerCase()
     cleanQuery = cleanQuery.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\/$/, '')
 
     let result = repos.filter((r) => {
-      // Time filter
       if (timeFilter === 'daily' && r.daily_appearances === 0) return false
       if (timeFilter === 'weekly' && r.weekly_appearances === 0) return false
       if (timeFilter === 'monthly' && r.monthly_appearances === 0) return false
 
-      // Category filter
       if (categoryFilter !== 'all') {
         const cat = r.ai_specs?.architecture_type || 'Full-Stack App'
         if (cat !== categoryFilter) return false
       }
 
-      // Language filter
       if (languageFilter !== 'all' && r.language !== languageFilter) return false
 
-      // Search query (supports repo name, description, tech stack, and pasted GitHub URL)
       if (cleanQuery !== '') {
         const matchName = r.repo_name.toLowerCase().includes(cleanQuery)
         const matchDesc = (r.description || '').toLowerCase().includes(cleanQuery)
@@ -193,6 +186,14 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
         valA = a.all_time_rank
         valB = b.all_time_rank
         return sortAsc ? valA - valB : valB - valA
+      } else if (sortBy === 'stars') {
+        valA = a.stars_count
+        valB = b.stars_count
+        return sortAsc ? valB - valA : valA - valB
+      } else if (sortBy === 'readiness') {
+        valA = a.ai_specs?.production_score || 0
+        valB = b.ai_specs?.production_score || 0
+        return sortAsc ? valB - valA : valA - valB
       } else if (sortBy === 'power_score') {
         valA = a.trending_power_score
         valB = b.trending_power_score
@@ -201,10 +202,10 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
         valA = a.stars_today || 0
         valB = b.stars_today || 0
         return sortAsc ? valB - valA : valA - valB
-      } else if (sortBy === 'stars') {
-        valA = a.stars_count
-        valB = b.stars_count
-        return sortAsc ? valB - valA : valA - valB
+      } else if (sortBy === 'peak') {
+        valA = a.peak_rank
+        valB = b.peak_rank
+        return sortAsc ? valA - valB : valB - valA
       }
       return 0
     })
@@ -217,7 +218,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       setSortAsc(!sortAsc)
     } else {
       setSortBy(field)
-      setSortAsc(field === 'rank')
+      setSortAsc(field === 'rank' || field === 'peak')
     }
   }
 
@@ -231,24 +232,47 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     setExpandedRepoId(expandedRepoId === id ? null : id)
   }
 
-  // Red-to-green gradient helper based on power score
+  // Nuanced score-wise color and shade for Power Score
   const getPowerScoreStyle = (score: number) => {
-    if (score >= 70) {
+    if (score >= 75) {
       return {
-        text: 'text-success-400',
-        bar: 'bg-gradient-to-r from-emerald-500 to-green-400',
+        text: 'text-emerald-400 font-bold',
+        bar: 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-[0_0_8px_rgba(52,211,153,0.35)]',
       }
     }
-    if (score >= 45) {
+    if (score >= 60) {
       return {
-        text: 'text-warning-400',
-        bar: 'bg-gradient-to-r from-amber-500 to-yellow-400',
+        text: 'text-teal-400 font-bold',
+        bar: 'bg-gradient-to-r from-teal-400 to-emerald-500 shadow-[0_0_6px_rgba(20,184,166,0.25)]',
+      }
+    }
+    if (score >= 50) {
+      return {
+        text: 'text-amber-400 font-semibold',
+        bar: 'bg-gradient-to-r from-yellow-400 to-amber-500 shadow-[0_0_6px_rgba(251,191,36,0.25)]',
+      }
+    }
+    if (score >= 40) {
+      return {
+        text: 'text-orange-400 font-semibold',
+        bar: 'bg-gradient-to-r from-amber-500 to-orange-500',
       }
     }
     return {
-      text: 'text-error-400',
-      bar: 'bg-gradient-to-r from-red-600 to-rose-400',
+      text: 'text-rose-400 font-bold',
+      bar: 'bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_8px_rgba(244,63,94,0.35)]',
     }
+  }
+
+  // Readiness badge color helper
+  const getReadinessStyle = (score: number) => {
+    if (score >= 85) {
+      return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+    }
+    if (score >= 70) {
+      return 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+    }
+    return 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
   }
 
   return (
@@ -363,12 +387,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
         </div>
       </div>
 
-      {/* ─── Table Section (Attached Directly, Zero Gap, Sticky Header) ─── */}
+      {/* ─── Table Section (Sticky Header in Exact Requested Column Order) ─── */}
       <table className="w-full text-left text-xs text-neutral-300">
         <thead className="bg-neutral-950 text-[11px] font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 shadow-sm">
           <tr>
+            {/* Rank */}
             <th
-              className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 w-16 cursor-pointer select-none border-b border-neutral-800"
+              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-14 cursor-pointer select-none border-b border-neutral-800"
               onClick={() => toggleSort('rank')}
             >
               <div className="flex items-center gap-1 hover:text-neutral-100">
@@ -376,12 +401,46 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                 <TrendingUp className="w-3 h-3 text-primary-400" />
               </div>
             </th>
-            <th className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 min-w-[280px] border-b border-neutral-800">
+
+            {/* Repository */}
+            <th className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 min-w-[200px] border-b border-neutral-800">
               Repository
             </th>
-            {/* Short name for Velocity */}
+
+            {/* 1st: Total Stars */}
             <th
-              className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 w-36 cursor-pointer select-none border-b border-neutral-800"
+              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-24 cursor-pointer select-none border-b border-neutral-800"
+              onClick={() => toggleSort('stars')}
+            >
+              <div className="flex items-center gap-1 hover:text-neutral-100">
+                <Star className="w-3 h-3 text-warning-400 fill-warning-400/20" />
+                <span>Stars</span>
+              </div>
+            </th>
+
+            {/* 2nd: Readiness */}
+            <th
+              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-24 cursor-pointer select-none border-b border-neutral-800"
+              onClick={() => toggleSort('readiness')}
+            >
+              <div className="flex items-center gap-1 hover:text-neutral-100">
+                <span>Readiness</span>
+              </div>
+            </th>
+
+            {/* 3rd: Trend Power */}
+            <th
+              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-32 cursor-pointer select-none border-b border-neutral-800"
+              onClick={() => toggleSort('power_score')}
+            >
+              <div className="flex items-center gap-1 hover:text-neutral-100">
+                <span>Trend Power</span>
+              </div>
+            </th>
+
+            {/* 4th: Velocity */}
+            <th
+              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-32 cursor-pointer select-none border-b border-neutral-800"
               onClick={() => toggleSort('growth_velocity')}
             >
               <div className="flex items-center gap-1 hover:text-neutral-100">
@@ -389,34 +448,37 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                 <Flame className="w-3 h-3 text-warning-400" />
               </div>
             </th>
+
+            {/* 5th: Peak */}
             <th
-              className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 w-32 cursor-pointer select-none border-b border-neutral-800"
-              onClick={() => toggleSort('power_score')}
+              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-16 cursor-pointer select-none border-b border-neutral-800"
+              onClick={() => toggleSort('peak')}
             >
               <div className="flex items-center gap-1 hover:text-neutral-100">
-                <span>Power Score</span>
+                <span>Peak</span>
               </div>
             </th>
-            <th className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 w-16 border-b border-neutral-800">
-              Peak
+
+            {/* 6th: Language */}
+            <th className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-24 border-b border-neutral-800">
+              Language
             </th>
-            <th
-              className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 w-28 cursor-pointer select-none border-b border-neutral-800"
-              onClick={() => toggleSort('stars')}
-            >
-              <div className="flex items-center gap-1 hover:text-neutral-100">
-                <span>Total Stars</span>
-              </div>
+
+            {/* 7th: Category */}
+            <th className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-36 border-b border-neutral-800">
+              Category
             </th>
-            <th className="sticky top-0 z-30 bg-neutral-950 px-3.5 py-2.5 w-40 border-b border-neutral-800">
-              Architecture
+
+            {/* 8th: GitHub Link */}
+            <th className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-24 text-right border-b border-neutral-800">
+              GitHub
             </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-800/60">
           {isLoading && repos.length === 0 ? (
             <tr>
-              <td colSpan={7} className="px-4 py-16 text-center text-neutral-500">
+              <td colSpan={10} className="px-4 py-16 text-center text-neutral-500">
                 <div className="flex items-center justify-center gap-2">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500" />
                   <span>Loading trending repositories...</span>
@@ -448,7 +510,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
 
               return (
                 <React.Fragment key={row.repo_id}>
-                  {/* Main Row: Click anywhere for AI specs, NO description in main row */}
+                  {/* Main Row: Click anywhere for AI specs */}
                   <tr
                     className={`hover:bg-neutral-800/50 transition-colors cursor-pointer group ${
                       isExpanded ? 'bg-neutral-800/40' : ''
@@ -456,37 +518,52 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                     onClick={() => toggleExpand(row.repo_id)}
                     title="Click row to view AI intelligence specs"
                   >
-                    {/* Rank */}
-                    <td className="px-3.5 py-2.5 font-mono font-bold whitespace-nowrap">
+                    {/* 1. Rank */}
+                    <td className="px-3 py-2.5 font-mono font-bold whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${rankBadge}`}>
                         {rankIcon ? `${rankIcon} #${rank}` : `#${rank}`}
                       </span>
                     </td>
 
-                    {/* Repository: Name & language tag ONLY (Description removed per request) */}
-                    <td className="px-3.5 py-2.5 max-w-sm sm:max-w-md">
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`https://github.com/${row.repo_name}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-bold text-neutral-100 hover:text-primary-400 hover:underline flex items-center gap-1.5 text-xs sm:text-sm"
-                          title="Open repository on GitHub"
-                        >
-                          <span>{row.repo_name}</span>
-                          <ExternalLink className="w-3 h-3 text-neutral-500 hover:text-primary-400 shrink-0" />
-                        </a>
-                        {row.language && (
-                          <span className="px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300">
-                            {row.language}
-                          </span>
-                        )}
+                    {/* 2. Repository Name ONLY */}
+                    <td className="px-3 py-2.5 max-w-xs sm:max-w-sm">
+                      <span className="font-bold text-neutral-100 hover:text-primary-400 transition-colors text-xs sm:text-sm">
+                        {row.repo_name}
+                      </span>
+                    </td>
+
+                    {/* 3. Total Stars (1st in metric order) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap font-mono text-neutral-200">
+                      <div className="flex items-center gap-1 font-semibold">
+                        <Star className="w-3 h-3 text-warning-400 fill-warning-400/20" />
+                        <span>{row.stars_count.toLocaleString()}</span>
                       </div>
                     </td>
 
-                    {/* Velocity: Clean stars/day with compact alert tag for notification setup */}
-                    <td className="px-3.5 py-2.5 whitespace-nowrap">
+                    {/* 4. Readiness (2nd in metric order) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap font-mono">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${getReadinessStyle(prodScore)}`}>
+                        {prodScore}/100
+                      </span>
+                    </td>
+
+                    {/* 5. Trend Power (3rd in metric order: nuanced color & shade) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-mono text-xs ${scoreStyle.text}`}>
+                          {row.trending_power_score.toFixed(1)}
+                        </span>
+                        <div className="w-14 h-1.5 bg-neutral-800/90 rounded-full overflow-hidden hidden sm:block p-0">
+                          <div
+                            className={`h-full ${scoreStyle.bar} rounded-full transition-all duration-300`}
+                            style={{ width: `${Math.min(row.trending_power_score, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* 6. Velocity (4th in metric order) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       <div
                         className="flex items-center gap-1.5 whitespace-nowrap"
                         data-notification-status={isBreakout ? 'breakout' : isSurging ? 'surge' : 'normal'}
@@ -505,19 +582,18 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                           {starsToday > 0 ? `+${starsToday.toLocaleString()}/day` : '—'}
                         </span>
 
-                        {/* Future Notification System Trigger Tag */}
                         {isBreakout && (
                           <span
-                            className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold rounded bg-error-500/20 text-error-400 border border-error-500/30"
-                            title="Breakout Repo (>1000 stars/day) - Notification Target"
+                            className="inline-flex items-center px-1 py-0.2 text-[10px] font-bold rounded bg-error-500/20 text-error-400 border border-error-500/30"
+                            title="Breakout (>1000 stars/day) - Notification Target"
                           >
                             🔥
                           </span>
                         )}
                         {isSurging && (
                           <span
-                            className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold rounded bg-warning-500/20 text-warning-400 border border-warning-500/30"
-                            title="Surging Repo (>500 stars/day) - Notification Target"
+                            className="inline-flex items-center px-1 py-0.2 text-[10px] font-bold rounded bg-warning-500/20 text-warning-400 border border-warning-500/30"
+                            title="Surge (>500 stars/day) - Notification Target"
                           >
                             ⚡
                           </span>
@@ -525,51 +601,54 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                       </div>
                     </td>
 
-                    {/* Power Score: Red-to-green gradient depending on score */}
-                    <td className="px-3.5 py-2.5 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className={`font-mono text-xs font-bold ${scoreStyle.text}`}>
-                          {row.trending_power_score.toFixed(1)}
-                        </span>
-                        <div className="w-14 h-1.5 bg-neutral-800 rounded-full overflow-hidden hidden sm:block">
-                          <div
-                            className={`h-full ${scoreStyle.bar} rounded-full transition-all duration-300`}
-                            style={{ width: `${Math.min(row.trending_power_score, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Peak Rank */}
-                    <td className="px-3.5 py-2.5 whitespace-nowrap">
+                    {/* 7. Peak (5th in metric order) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="px-1.5 py-0.2 rounded bg-neutral-800/80 text-[10px] font-mono font-medium text-success-400 border border-neutral-700/50">
                         #{row.peak_rank}
                       </span>
                     </td>
 
-                    {/* Total Stars */}
-                    <td className="px-3.5 py-2.5 whitespace-nowrap font-mono text-neutral-300">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-3 h-3 text-warning-400 fill-warning-400/20" />
-                        <span>{row.stars_count.toLocaleString()}</span>
-                      </div>
+                    {/* 8. Language (6th in metric order) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {row.language ? (
+                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-neutral-800 border border-neutral-700 text-neutral-300">
+                          {row.language}
+                        </span>
+                      ) : (
+                        <span className="text-neutral-500 text-xs">—</span>
+                      )}
                     </td>
 
-                    {/* Architecture */}
-                    <td className="px-3.5 py-2.5 whitespace-nowrap">
+                    {/* 9. Category (7th in metric order) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-primary-500/10 text-primary-300 border border-primary-500/20">
                         {row.ai_specs?.architecture_type || 'Full-Stack App'}
                       </span>
                     </td>
+
+                    {/* 10. GitHub Link (8th in metric order) */}
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <a
+                        href={`https://github.com/${row.repo_name}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white border border-neutral-700 hover:border-neutral-600 transition-colors text-[11px] font-semibold shadow-sm"
+                        title="Open on GitHub"
+                      >
+                        <span>GitHub</span>
+                        <ExternalLink className="w-3 h-3 text-neutral-400 group-hover:text-white" />
+                      </a>
+                    </td>
                   </tr>
 
-                  {/* ─── Expandable AI Intelligence Card (Full Width, In-Place) ─── */}
+                  {/* ─── Expandable AI Intelligence Card (Readiness & GitHub Link Removed) ─── */}
                   {isExpanded && (
                     <tr>
-                      <td colSpan={7} className="p-0 bg-neutral-950 border-y border-primary-500/30">
+                      <td colSpan={10} className="p-0 bg-neutral-950 border-y border-primary-500/30">
                         <div className="w-full px-4 sm:px-6 py-4 space-y-3.5 animate-in fade-in duration-150">
-                          {/* Card Header */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-neutral-800">
+                          {/* Card Header: Repo Name & Architecture badge ONLY */}
+                          <div className="flex items-center justify-between pb-2.5 border-b border-neutral-800">
                             <div className="flex items-center gap-2">
                               <Sparkles className="w-4 h-4 text-primary-400" />
                               <h4 className="font-bold text-neutral-50 text-sm">
@@ -580,21 +659,9 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <span className="text-neutral-400 text-xs font-medium">Readiness:</span>
-                              <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-neutral-800 text-success-400 border border-neutral-700">
-                                {prodScore}/100
-                              </span>
-                              <a
-                                href={`https://github.com/${row.repo_name}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="ml-2 px-3 py-1 rounded-lg bg-primary-600 hover:bg-primary-500 text-neutral-950 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
-                              >
-                                <span>Open on GitHub</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </div>
+                            <span className="text-neutral-500 text-[11px]">
+                              License: <strong className="text-neutral-300">{row.ai_specs?.license_risk || 'Low (Standard OSS)'}</strong>
+                            </span>
                           </div>
 
                           {/* Value Proposition */}
@@ -607,7 +674,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                             </p>
                           </div>
 
-                          {/* Tech Stack Pills & License */}
+                          {/* Tech Stack Pills */}
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                             <div>
                               <span className="text-neutral-400 text-[11px] font-medium mr-2">Tech Stack:</span>
@@ -621,10 +688,6 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                                   </span>
                                 ))}
                               </div>
-                            </div>
-
-                            <div className="text-neutral-400 text-[11px]">
-                              License: <strong className="text-neutral-200">{row.ai_specs?.license_risk || 'Low (Standard OSS)'}</strong>
                             </div>
                           </div>
 
@@ -660,7 +723,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
             })
           ) : (
             <tr>
-              <td colSpan={7} className="px-4 py-12 text-center text-neutral-500">
+              <td colSpan={10} className="px-4 py-12 text-center text-neutral-500">
                 <div className="flex flex-col items-center justify-center gap-2.5">
                   <p>No repositories found matching your filter criteria.</p>
                   <button

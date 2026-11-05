@@ -31,4 +31,4 @@ export interface UnifiedRepoItem {
 }
 
 export type TimeFilter = 'all' | 'daily' | 'weekly' | 'monthly'
-export type SortOption = 'rank' | 'power_score' | 'growth_velocity' | 'stars'
+export type SortOption = 'rank' | 'power_score' | 'growth_velocity' | 'stars' | 'readiness' | 'peak'
