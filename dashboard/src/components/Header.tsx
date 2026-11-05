@@ -16,19 +16,14 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header className="relative w-full border-b border-neutral-800 bg-neutral-900/90 backdrop-blur-md">
-      <div className="max-w-[1680px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
+      <div className="max-w-[1720px] w-full mx-auto px-3 sm:px-5 lg:px-6 py-2">
         <div className="flex items-center justify-between gap-4">
-          {/* Brand */}
+          {/* Brand - Clean without redundant pill */}
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primary-600 via-primary-500 to-accent-500 flex items-center justify-center shadow-md shadow-primary-500/20 text-neutral-950 font-black text-xs tracking-wider">
               V2
             </div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm sm:text-base font-bold tracking-tight text-neutral-50">GitHub Trend Tracker</h1>
-              <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-primary-500/10 text-primary-400 border border-primary-500/20 hidden sm:inline-block">
-                VC Radar
-              </span>
-            </div>
+            <h1 className="text-sm sm:text-base font-bold tracking-tight text-neutral-50">GitHub Trend Tracker</h1>
           </div>
 
           {/* Quick Stats & Refresh */}
