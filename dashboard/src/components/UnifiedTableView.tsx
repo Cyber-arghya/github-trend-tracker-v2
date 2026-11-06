@@ -14,15 +14,17 @@ import {
   RotateCcw,
   Calendar,
 } from 'lucide-react'
-import type { UnifiedRepoItem, TimeFilter, SortOption } from '../types'
+import type { UnifiedRepoItem, TimeFilter, SortOption, TrendingSnapshotItem } from '../types'
 
 interface UnifiedTableViewProps {
   repos: UnifiedRepoItem[]
+  snapshots?: TrendingSnapshotItem[]
   isLoading: boolean
 }
 
-export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoading }) => {
+export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, snapshots = [], isLoading }) => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
+  const [selectedDate, setSelectedDate] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [languageFilter, setLanguageFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -30,6 +32,77 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
   const [sortAsc, setSortAsc] = useState<boolean>(true)
   const [expandedRepoId, setExpandedRepoId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // Distinct available dates for the active period
+  const availableDatesForPeriod = useMemo(() => {
+    if (!snapshots || snapshots.length === 0) return []
+    if (timeFilter === 'all') {
+      const dates = Array.from(new Set(snapshots.map((s) => s.recorded_at.slice(0, 10))))
+      return dates.sort().reverse()
+    }
+    const periodSnaps = snapshots.filter((s) => s.period === timeFilter)
+    const dates = Array.from(new Set(periodSnaps.map((s) => s.recorded_at.slice(0, 10))))
+    return dates.sort().reverse()
+  }, [snapshots, timeFilter])
+
+  // Effective selected date for the active period
+  const effectiveDate = useMemo(() => {
+    if (selectedDate && availableDatesForPeriod.includes(selectedDate)) {
+      return selectedDate
+    }
+    return availableDatesForPeriod[0] || ''
+  }, [selectedDate, availableDatesForPeriod])
+
+  // Base repositories depending on time filter and selected snapshot date
+  const baseRepos = useMemo(() => {
+    if (timeFilter === 'all') {
+      return repos
+    }
+
+    if (!snapshots || snapshots.length === 0 || !effectiveDate) {
+      return repos.filter((r) => {
+        if (timeFilter === 'daily') return r.daily_appearances > 0
+        if (timeFilter === 'weekly') return r.weekly_appearances > 0
+        if (timeFilter === 'monthly') return r.monthly_appearances > 0
+        return true
+      })
+    }
+
+    // Match snapshots for chosen period & date
+    const matchingSnaps = snapshots.filter(
+      (s) => s.period === timeFilter && s.recorded_at.startsWith(effectiveDate)
+    )
+
+    // Deduplicate snapshots by repo_id (keeping lowest rank / best position)
+    const snapMap = new Map<string, TrendingSnapshotItem>()
+    matchingSnaps.forEach((s) => {
+      const existing = snapMap.get(s.repo_id)
+      if (!existing || s.rank < existing.rank) {
+        snapMap.set(s.repo_id, s)
+      }
+    })
+
+    const repoLookup = new Map(repos.map((r) => [r.repo_id, r]))
+    const snapshotItems: UnifiedRepoItem[] = []
+
+    // Build ordered list based on that day's snapshot rank
+    Array.from(snapMap.values())
+      .sort((a, b) => a.rank - b.rank)
+      .forEach((snap) => {
+        const repo = repoLookup.get(snap.repo_id)
+        if (repo) {
+          snapshotItems.push({
+            ...repo,
+            snapshot_rank: snap.rank,
+            snapshot_date: effectiveDate,
+            stars_today: snap.stars_today,
+            latest_period: snap.period,
+          })
+        }
+      })
+
+    return snapshotItems
+  }, [timeFilter, repos, snapshots, effectiveDate])
 
   // Master list of all distinct categories & languages in dataset
   const allCategories = useMemo(() => {
@@ -55,18 +128,36 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
 
   // 1. Coordinated Time Counts
   const timeCounts = useMemo(() => {
-    const base = repos.filter((r) => {
-      if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) return false
-      if (languageFilter !== 'all' && r.language !== languageFilter) return false
-      return true
-    })
-    return {
-      all: base.length,
-      daily: base.filter((r) => r.daily_appearances > 0).length,
-      weekly: base.filter((r) => r.weekly_appearances > 0).length,
-      monthly: base.filter((r) => r.monthly_appearances > 0).length,
+    if (!snapshots || snapshots.length === 0) {
+      const base = repos.filter((r) => {
+        if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) return false
+        if (languageFilter !== 'all' && r.language !== languageFilter) return false
+        return true
+      })
+      return {
+        all: base.length,
+        daily: base.filter((r) => r.daily_appearances > 0).length,
+        weekly: base.filter((r) => r.weekly_appearances > 0).length,
+        monthly: base.filter((r) => r.monthly_appearances > 0).length,
+      }
     }
-  }, [repos, categoryFilter, languageFilter])
+
+    const getPeriodCount = (p: 'daily' | 'weekly' | 'monthly') => {
+      const pSnaps = snapshots.filter((s) => s.period === p)
+      if (pSnaps.length === 0) return 0
+      const targetDate = (p === timeFilter && effectiveDate) ? effectiveDate : pSnaps[0].recorded_at.slice(0, 10)
+      const matching = pSnaps.filter((s) => s.recorded_at.startsWith(targetDate))
+      const uniqueRepoIds = new Set(matching.map((s) => s.repo_id))
+      return uniqueRepoIds.size
+    }
+
+    return {
+      all: repos.length,
+      daily: getPeriodCount('daily'),
+      weekly: getPeriodCount('weekly'),
+      monthly: getPeriodCount('monthly'),
+    }
+  }, [repos, snapshots, timeFilter, effectiveDate, categoryFilter, languageFilter])
 
   // 2. Coordinated Category Counts
   const categoryCounts = useMemo(() => {
@@ -75,10 +166,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       counts[c] = 0
     })
 
-    const matching = repos.filter((r) => {
-      if (timeFilter === 'daily' && r.daily_appearances === 0) return false
-      if (timeFilter === 'weekly' && r.weekly_appearances === 0) return false
-      if (timeFilter === 'monthly' && r.monthly_appearances === 0) return false
+    const matching = baseRepos.filter((r) => {
       if (languageFilter !== 'all' && r.language !== languageFilter) return false
       return true
     })
@@ -89,7 +177,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       counts[cat] = (counts[cat] || 0) + 1
     })
     return counts
-  }, [repos, timeFilter, languageFilter, allCategories])
+  }, [baseRepos, languageFilter, allCategories])
 
   // 3. Coordinated Language Counts
   const languageCounts = useMemo(() => {
@@ -98,10 +186,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       counts[l] = 0
     })
 
-    const matching = repos.filter((r) => {
-      if (timeFilter === 'daily' && r.daily_appearances === 0) return false
-      if (timeFilter === 'weekly' && r.weekly_appearances === 0) return false
-      if (timeFilter === 'monthly' && r.monthly_appearances === 0) return false
+    const matching = baseRepos.filter((r) => {
       if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) return false
       return true
     })
@@ -113,7 +198,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       }
     })
     return counts
-  }, [repos, timeFilter, categoryFilter, allLanguages])
+  }, [baseRepos, categoryFilter, allLanguages])
 
   // Smart filter click handlers: toggle off if already active, or auto-coordinate
   const handleCategoryClick = (cat: string) => {
@@ -122,7 +207,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       return
     }
     if (cat !== 'all' && languageFilter !== 'all') {
-      const hasMatch = repos.some(
+      const hasMatch = baseRepos.some(
         (r) => (r.ai_specs?.architecture_type || 'Full-Stack App') === cat && r.language === languageFilter
       )
       if (!hasMatch) {
@@ -138,7 +223,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       return
     }
     if (lang !== 'all' && categoryFilter !== 'all') {
-      const hasMatch = repos.some(
+      const hasMatch = baseRepos.some(
         (r) => r.language === lang && (r.ai_specs?.architecture_type || 'Full-Stack App') === categoryFilter
       )
       if (!hasMatch) {
@@ -150,6 +235,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
 
   const handleResetFilters = () => {
     setTimeFilter('all')
+    setSelectedDate('')
     setCategoryFilter('all')
     setLanguageFilter('all')
     setSearchQuery('')
@@ -160,11 +246,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     let cleanQuery = searchQuery.trim().toLowerCase()
     cleanQuery = cleanQuery.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\/$/, '')
 
-    let result = repos.filter((r) => {
-      if (timeFilter === 'daily' && r.daily_appearances === 0) return false
-      if (timeFilter === 'weekly' && r.weekly_appearances === 0) return false
-      if (timeFilter === 'monthly' && r.monthly_appearances === 0) return false
-
+    let result = baseRepos.filter((r) => {
       if (categoryFilter !== 'all') {
         const cat = r.ai_specs?.architecture_type || 'Full-Stack App'
         if (cat !== categoryFilter) return false
@@ -189,8 +271,8 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
       let valB: number = 0
 
       if (sortBy === 'rank') {
-        valA = a.all_time_rank
-        valB = b.all_time_rank
+        valA = (timeFilter !== 'all' && a.snapshot_rank) ? a.snapshot_rank : a.all_time_rank
+        valB = (timeFilter !== 'all' && b.snapshot_rank) ? b.snapshot_rank : b.all_time_rank
         return sortAsc ? valA - valB : valB - valA
       } else if (sortBy === 'stars') {
         valA = a.stars_count
@@ -225,7 +307,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     })
 
     return result
-  }, [repos, timeFilter, categoryFilter, languageFilter, searchQuery, sortBy, sortAsc])
+  }, [baseRepos, timeFilter, categoryFilter, languageFilter, searchQuery, sortBy, sortAsc])
 
   const toggleSort = (field: SortOption) => {
     if (sortBy === field) {
@@ -294,37 +376,67 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     <div className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 shadow-md">
       {/* ─── Filter Section (Directly Top Zone of Container, Zero Gap) ─── */}
       <div className="bg-neutral-900/95 border-b border-neutral-800 p-2.5 sm:p-3 space-y-2 rounded-t-xl">
-        {/* Row 1: Time Filters + Search */}
+        {/* Row 1: Time Filters + Date Selector + Search */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-          {/* Time Filter Pills */}
-          <div className="flex items-center gap-1 p-0.5 bg-neutral-950 rounded-lg border border-neutral-800 shrink-0 overflow-x-auto">
-            {(
-              [
-                { id: 'all', label: 'All-Time' },
-                { id: 'daily', label: 'Today (Daily)' },
-                { id: 'weekly', label: 'This Week' },
-                { id: 'monthly', label: 'This Month' },
-              ] as const
-            ).map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setTimeFilter(item.id)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                  timeFilter === item.id
-                    ? 'bg-primary-500 text-neutral-950 font-bold shadow-sm'
-                    : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
-                }`}
-              >
-                <span>{item.label}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    timeFilter === item.id ? 'bg-primary-600 text-neutral-950 font-bold' : 'bg-neutral-800 text-neutral-400'
+          <div className="flex items-center gap-2 overflow-x-auto">
+            {/* Time Filter Pills */}
+            <div className="flex items-center gap-1 p-0.5 bg-neutral-950 rounded-lg border border-neutral-800 shrink-0">
+              {(
+                [
+                  { id: 'all', label: 'All-Time' },
+                  { id: 'daily', label: 'Today (Daily)' },
+                  { id: 'weekly', label: 'This Week' },
+                  { id: 'monthly', label: 'This Month' },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setTimeFilter(item.id)
+                    setSelectedDate('')
+                  }}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                    timeFilter === item.id
+                      ? 'bg-primary-500 text-neutral-950 font-bold shadow-sm'
+                      : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
                   }`}
                 >
-                  {timeCounts[item.id]}
-                </span>
-              </button>
-            ))}
+                  <span>{item.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      timeFilter === item.id ? 'bg-primary-600 text-neutral-950 font-bold' : 'bg-neutral-800 text-neutral-400'
+                    }`}
+                  >
+                    {timeCounts[item.id]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Date Selector Dropdown (Time Travel) */}
+            {timeFilter !== 'all' ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-neutral-950 rounded-lg border border-primary-500/50 shadow-sm shadow-primary-500/10 shrink-0 text-xs transition-all hover:border-primary-400">
+                <Calendar className="w-3.5 h-3.5 text-primary-400 shrink-0" />
+                <span className="text-[11px] text-neutral-400 font-medium hidden sm:inline">Date:</span>
+                <select
+                  value={effectiveDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent text-xs font-mono font-bold text-neutral-100 focus:outline-none cursor-pointer pr-1"
+                  title="Choose historical snapshot date"
+                >
+                  {availableDatesForPeriod.map((d, idx) => (
+                    <option key={d} value={d} className="bg-neutral-900 text-neutral-100 py-1">
+                      {d} {idx === 0 ? '(Latest)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-neutral-950/60 rounded-lg border border-neutral-800/80 shrink-0 text-xs text-neutral-500">
+                <Calendar className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
+                <span className="text-[11px] font-mono text-neutral-400">All History</span>
+              </div>
+            )}
           </div>
 
           {/* Search Bar (Auto-resolves pasted GitHub URLs) */}
@@ -512,7 +624,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
             </tr>
           ) : filteredRepos.length > 0 ? (
             filteredRepos.map((row) => {
-              const rank = row.all_time_rank
+              const displayRank = (timeFilter !== 'all' && row.snapshot_rank) ? row.snapshot_rank : row.all_time_rank
               const isExpanded = expandedRepoId === row.repo_id
               const starsToday = row.stars_today || 0
               const isBreakout = starsToday >= 1000
@@ -522,13 +634,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
 
               let rankBadge = 'bg-neutral-800 text-neutral-300'
               let rankIcon = null
-              if (rank === 1) {
+              if (displayRank === 1) {
                 rankBadge = 'bg-warning-500/20 text-warning-400 border border-warning-500/40'
                 rankIcon = '🥇'
-              } else if (rank === 2) {
+              } else if (displayRank === 2) {
                 rankBadge = 'bg-neutral-300/20 text-neutral-200 border border-neutral-300/40'
                 rankIcon = '🥈'
-              } else if (rank === 3) {
+              } else if (displayRank === 3) {
                 rankBadge = 'bg-warning-700/20 text-warning-500 border border-warning-700/40'
                 rankIcon = '🥉'
               }
@@ -545,8 +657,11 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                   >
                     {/* 1. Rank */}
                     <td className="px-3 py-2.5 font-mono font-bold whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded-md text-xs font-semibold ${rankBadge}`}>
-                        {rankIcon ? `${rankIcon} #${rank}` : `#${rank}`}
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-xs font-semibold ${rankBadge}`}
+                        title={row.snapshot_rank ? `Rank #${row.snapshot_rank} on ${row.snapshot_date || effectiveDate} (${row.latest_period || 'daily'})` : `All-Time Rank #${row.all_time_rank}`}
+                      >
+                        {rankIcon ? `${rankIcon} #${displayRank}` : `#${displayRank}`}
                       </span>
                     </td>
 

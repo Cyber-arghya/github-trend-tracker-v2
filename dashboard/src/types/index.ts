@@ -33,6 +33,17 @@ export interface UnifiedRepoItem {
   max_streak_30d?: number
   stars_today?: number
   latest_period?: 'daily' | 'weekly' | 'monthly'
+  snapshot_rank?: number
+  snapshot_date?: string
+}
+
+export interface TrendingSnapshotItem {
+  id: string
+  repo_id: string
+  rank: number
+  period: 'daily' | 'weekly' | 'monthly'
+  stars_today: number
+  recorded_at: string
 }
 
 export type TimeFilter = 'all' | 'daily' | 'weekly' | 'monthly'

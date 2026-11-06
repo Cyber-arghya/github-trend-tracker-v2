@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Header } from './components/Header'
 import { UnifiedTableView } from './components/UnifiedTableView'
 import { supabase } from './lib/supabase'
-import type { UnifiedRepoItem } from './types'
+import type { UnifiedRepoItem, TrendingSnapshotItem } from './types'
 
 export default function App() {
   const [repos, setRepos] = useState<UnifiedRepoItem[]>([])
+  const [snapshots, setSnapshots] = useState<TrendingSnapshotItem[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   const fetchData = useCallback(async () => {
@@ -17,18 +18,29 @@ export default function App() {
         .select('*')
         .order('all_time_rank', { ascending: true })
 
-      // 2. Fetch latest snapshot velocities (stars_today) from 'trending_snapshots'
+      // 2. Fetch snapshot history from 'trending_snapshots'
       const { data: snapData } = await supabase
         .from('trending_snapshots')
-        .select('repo_id, stars_today, period, recorded_at')
+        .select('id, repo_id, rank, period, stars_today, recorded_at')
         .order('recorded_at', { ascending: false })
-        .limit(200)
+        .limit(1000)
 
       // Map latest stars_today by repo_id (Priority: Daily snapshots > Weekly > Monthly)
       const latestVelocityMap = new Map<string, { stars_today: number; period: 'daily' | 'weekly' | 'monthly' }>()
       if (snapData) {
+        const normalizedSnaps: TrendingSnapshotItem[] = (snapData as TrendingSnapshotItem[]).map((s) => {
+          let vel = s.stars_today || 0
+          if (s.period === 'monthly' && vel > 1000) {
+            vel = Math.max(1, Math.round(vel / 30))
+          } else if (s.period === 'weekly' && vel > 1000) {
+            vel = Math.max(1, Math.round(vel / 7))
+          }
+          return { ...s, stars_today: vel }
+        })
+        setSnapshots(normalizedSnaps)
+
         // Pass 1: Prioritize daily snapshots (ground truth for true 24h velocity)
-        snapData.forEach((s) => {
+        normalizedSnaps.forEach((s) => {
           if (s.period === 'daily' && !latestVelocityMap.has(s.repo_id)) {
             latestVelocityMap.set(s.repo_id, {
               stars_today: s.stars_today || 0,
@@ -37,17 +49,11 @@ export default function App() {
           }
         })
         // Pass 2: Fallback to weekly/monthly snapshots if daily is not available
-        snapData.forEach((s) => {
+        normalizedSnaps.forEach((s) => {
           if (!latestVelocityMap.has(s.repo_id)) {
-            let vel = s.stars_today || 0
-            if (s.period === 'monthly' && vel > 1000) {
-              vel = Math.max(1, Math.round(vel / 30))
-            } else if (s.period === 'weekly' && vel > 1000) {
-              vel = Math.max(1, Math.round(vel / 7))
-            }
             latestVelocityMap.set(s.repo_id, {
-              stars_today: vel,
-              period: s.period as 'daily' | 'weekly' | 'monthly',
+              stars_today: s.stars_today || 0,
+              period: s.period,
             })
           }
         })
@@ -135,7 +141,7 @@ export default function App() {
       />
 
       <main className="flex-1 max-w-[1720px] w-full mx-auto px-2 sm:px-4 pt-1.5 pb-4">
-        <UnifiedTableView repos={repos} isLoading={isLoading} />
+        <UnifiedTableView repos={repos} snapshots={snapshots} isLoading={isLoading} />
       </main>
 
       <footer className="border-t border-neutral-900 bg-neutral-950 py-2.5 text-center text-xs text-neutral-500">
