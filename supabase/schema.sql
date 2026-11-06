@@ -41,7 +41,7 @@ CREATE INDEX IF NOT EXISTS idx_repos_language ON public.repositories(language);
 CREATE INDEX IF NOT EXISTS idx_snapshots_repo_period ON public.trending_snapshots(repo_id, period, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_snapshots_recorded_at ON public.trending_snapshots(recorded_at DESC);
 
--- 5. All-Time Leaderboard Materialized View (Golden Formula with Normalized Velocity & Daily Presence)
+-- 5. All-Time Leaderboard Materialized View (Rolling 7d/30d Windows, Active Streaks & Momentum)
 DROP MATERIALIZED VIEW IF EXISTS public.mv_all_time_leaderboard CASCADE;
 
 CREATE MATERIALIZED VIEW public.mv_all_time_leaderboard AS
@@ -54,8 +54,52 @@ WITH latest_snapshot AS (
     FROM public.trending_snapshots
     ORDER BY repo_id, recorded_at DESC
 ),
-daily_presence AS (
-    -- Best Rank of Day: deduplicated to 1 record per calendar date (immune to 4h cron runs)
+daily_runs AS (
+    -- Distinct calendar dates per repository in the last 30 days
+    SELECT DISTINCT
+        repo_id,
+        recorded_at::date AS dt
+    FROM public.trending_snapshots
+    WHERE recorded_at >= CURRENT_DATE - 30
+),
+grouped_streaks AS (
+    -- Gaps & Islands: consecutive dates have identical group key
+    SELECT
+        repo_id,
+        dt,
+        dt - (ROW_NUMBER() OVER (PARTITION BY repo_id ORDER BY dt) * INTERVAL '1 day') AS grp
+    FROM daily_runs
+),
+streak_stats AS (
+    SELECT
+        repo_id,
+        grp,
+        COUNT(*) AS streak_len,
+        MAX(dt) AS end_date
+    FROM grouped_streaks
+    GROUP BY repo_id, grp
+),
+streak_summary AS (
+    SELECT
+        repo_id,
+        COALESCE(MAX(streak_len), 0) AS max_streak_30d,
+        COALESCE(
+            MAX(streak_len) FILTER (WHERE end_date >= CURRENT_DATE - 1),
+            0
+        ) AS current_streak
+    FROM streak_stats
+    GROUP BY repo_id
+),
+window_counts AS (
+    SELECT
+        repo_id,
+        COUNT(DISTINCT dt) AS days_30d,
+        COUNT(DISTINCT dt) FILTER (WHERE dt >= CURRENT_DATE - 7) AS days_7d
+    FROM daily_runs
+    GROUP BY repo_id
+),
+daily_presence_all AS (
+    -- All-time calendar dates per repo
     SELECT
         repo_id,
         recorded_at::date AS snapshot_date,
@@ -63,16 +107,12 @@ daily_presence AS (
     FROM public.trending_snapshots
     GROUP BY repo_id, recorded_at::date
 ),
-presence_summary AS (
+all_time_summary AS (
     SELECT
-        dp.repo_id,
-        COUNT(DISTINCT dp.snapshot_date) AS trending_days,
-        SUM(
-            (1.0 / SQRT(GREATEST(dp.best_rank_of_day, 1))) * 50.0 *
-            EXP(-0.02 * GREATEST((CURRENT_DATE - dp.snapshot_date)::double precision, 0.0))
-        ) AS presence_score
-    FROM daily_presence dp
-    GROUP BY dp.repo_id
+        repo_id,
+        COUNT(DISTINCT snapshot_date) AS trending_days
+    FROM daily_presence_all
+    GROUP BY repo_id
 ),
 snapshot_counts AS (
     SELECT
@@ -104,15 +144,20 @@ aggregated_metrics AS (
         COALESCE(sc.daily_appearances, 0) AS daily_appearances,
         COALESCE(sc.weekly_appearances, 0) AS weekly_appearances,
         COALESCE(sc.monthly_appearances, 0) AS monthly_appearances,
-        COALESCE(ps.trending_days, 0) AS trending_days,
+        COALESCE(ats.trending_days, 0) AS trending_days,
+        COALESCE(wc.days_7d, 0) AS days_7d,
+        COALESCE(wc.days_30d, 0) AS days_30d,
+        COALESCE(ss.current_streak, 0) AS current_streak,
+        COALESCE(ss.max_streak_30d, 0) AS max_streak_30d,
         COALESCE(ls.latest_velocity, 0) AS latest_velocity,
         COALESCE(ls.latest_period, 'daily') AS latest_period,
         -- Normalized Velocity V_tilde: [0.0, 1.0] saturated at 2,000 stars/day
-        LEAST(1.0, LN(1.0 + GREATEST(COALESCE(ls.latest_velocity, 0), 0)) / LN(2001.0)) AS normalized_velocity,
-        COALESCE(ps.presence_score, 0.0) AS presence_score
+        LEAST(1.0, LN(1.0 + GREATEST(COALESCE(ls.latest_velocity, 0), 0)) / LN(2001.0)) AS normalized_velocity
     FROM public.repositories r
     LEFT JOIN latest_snapshot ls ON r.id = ls.repo_id
-    LEFT JOIN presence_summary ps ON r.id = ps.repo_id
+    LEFT JOIN window_counts wc ON r.id = wc.repo_id
+    LEFT JOIN streak_summary ss ON r.id = ss.repo_id
+    LEFT JOIN all_time_summary ats ON r.id = ats.repo_id
     LEFT JOIN snapshot_counts sc ON r.id = sc.repo_id
 )
 SELECT
@@ -134,22 +179,35 @@ SELECT
     m.weekly_appearances,
     m.monthly_appearances,
     m.trending_days,
+    m.days_7d,
+    m.days_30d,
+    m.current_streak,
+    m.max_streak_30d,
     m.latest_velocity AS stars_today,
     m.latest_period,
-    -- Trending Power Score: Breakout Momentum (100 * V_tilde) + Presence + Credibility (10 * log10(stars + 1))
+    -- Trending Power Score: Breakout Momentum + 7d Hotness + 30d Endurance + Streak Bonus + Credibility Base
     ROUND(
         (
-            (100.0 * m.normalized_velocity) +
-            m.presence_score +
-            (10.0 * LOG(GREATEST(m.stars_count, 1) + 1))
+            -- 1. Breakout Velocity Momentum (0 to 100 pts)
+            (100.0 * m.normalized_velocity)
+            -- 2. 7-Day Hotness (0 to 40 pts)
+            + (40.0 * (m.days_7d::double precision / 7.0))
+            -- 3. 30-Day Endurance (0 to 25 pts)
+            + (25.0 * (m.days_30d::double precision / 30.0))
+            -- 4. Active Streak Bonus (0 to 15 pts)
+            + (15.0 * (LEAST(m.current_streak, 7)::double precision / 7.0))
+            -- 5. Baseline Stars Credibility (Log scale)
+            + (10.0 * LOG(GREATEST(m.stars_count, 1) + 1))
         )::numeric,
         2
     )::double precision AS trending_power_score,
     DENSE_RANK() OVER (
         ORDER BY (
-            (100.0 * m.normalized_velocity) +
-            m.presence_score +
-            (10.0 * LOG(GREATEST(m.stars_count, 1) + 1))
+            (100.0 * m.normalized_velocity)
+            + (40.0 * (m.days_7d::double precision / 7.0))
+            + (25.0 * (m.days_30d::double precision / 30.0))
+            + (15.0 * (LEAST(m.current_streak, 7)::double precision / 7.0))
+            + (10.0 * LOG(GREATEST(m.stars_count, 1) + 1))
         ) DESC
     ) AS all_time_rank
 FROM aggregated_metrics m;
@@ -157,6 +215,7 @@ FROM aggregated_metrics m;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_leaderboard_repo_id ON public.mv_all_time_leaderboard(repo_id);
 CREATE INDEX IF NOT EXISTS idx_mv_leaderboard_rank ON public.mv_all_time_leaderboard(all_time_rank ASC);
 CREATE INDEX IF NOT EXISTS idx_mv_leaderboard_power ON public.mv_all_time_leaderboard(trending_power_score DESC);
+CREATE INDEX IF NOT EXISTS idx_mv_leaderboard_days_7d ON public.mv_all_time_leaderboard(days_7d DESC);
 
 -- 6. Helper Function to Refresh Leaderboard
 CREATE OR REPLACE FUNCTION public.refresh_all_time_leaderboard()

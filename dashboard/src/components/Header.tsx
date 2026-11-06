@@ -1,10 +1,11 @@
 import React from 'react'
-import { Flame, Database, RefreshCw, Calendar } from 'lucide-react'
+import { Flame, Database, RefreshCw, Calendar, Zap } from 'lucide-react'
 
 interface HeaderProps {
   totalTracked: number
   breakoutCount: number
   multiDayCount?: number
+  activeStreaksCount?: number
   isLoading: boolean
   onRefresh: () => void
 }
@@ -13,6 +14,7 @@ export const Header: React.FC<HeaderProps> = ({
   totalTracked,
   breakoutCount,
   multiDayCount = 0,
+  activeStreaksCount = 0,
   isLoading,
   onRefresh,
 }) => {
@@ -46,6 +48,13 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 font-medium">
                 <Calendar className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Sustained (3d+): <strong>{multiDayCount}</strong></span>
+              </div>
+            )}
+
+            {activeStreaksCount > 0 && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-500/10 border border-primary-500/30 text-xs text-primary-300 font-medium hidden md:flex">
+                <Zap className="w-3.5 h-3.5 text-primary-400" />
+                <span>Active Streaks: <strong>{activeStreaksCount}</strong></span>
               </div>
             )}
 

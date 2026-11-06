@@ -100,7 +100,11 @@ export default function App() {
   }, [repos])
 
   const multiDayCount = useMemo(() => {
-    return repos.filter((r) => (r.trending_days || 1) >= 3).length
+    return repos.filter((r) => (r.days_7d || r.trending_days || 1) >= 3).length
+  }, [repos])
+
+  const activeStreaksCount = useMemo(() => {
+    return repos.filter((r) => (r.current_streak || 0) >= 2).length
   }, [repos])
 
   return (
@@ -109,6 +113,7 @@ export default function App() {
         totalTracked={repos.length}
         breakoutCount={breakoutCount}
         multiDayCount={multiDayCount}
+        activeStreaksCount={activeStreaksCount}
         isLoading={isLoading}
         onRefresh={fetchData}
       />

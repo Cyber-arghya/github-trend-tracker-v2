@@ -207,9 +207,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
         valA = a.peak_rank
         valB = b.peak_rank
         return sortAsc ? valA - valB : valB - valA
-      } else if (sortBy === 'trending_days') {
-        valA = a.trending_days || 1
-        valB = b.trending_days || 1
+      } else if (sortBy === 'trending_days' || sortBy === 'days_7d') {
+        valA = a.days_7d !== undefined ? a.days_7d : (a.trending_days || 1)
+        valB = b.days_7d !== undefined ? b.days_7d : (b.trending_days || 1)
+        return sortAsc ? valB - valA : valA - valB
+      } else if (sortBy === 'current_streak') {
+        valA = a.current_streak || 0
+        valB = b.current_streak || 0
         return sortAsc ? valB - valA : valA - valB
       }
       return 0
@@ -464,13 +468,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
               </div>
             </th>
 
-            {/* 6th: Days Trending */}
+            {/* 6th: Streak & 7d Presence */}
             <th
-              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-20 cursor-pointer select-none border-b border-neutral-800"
-              onClick={() => toggleSort('trending_days')}
+              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-24 cursor-pointer select-none border-b border-neutral-800"
+              onClick={() => toggleSort('days_7d')}
             >
-              <div className="flex items-center gap-1 hover:text-neutral-100" title="Total unique calendar days on trending">
-                <span>Days</span>
+              <div className="flex items-center gap-1 hover:text-neutral-100" title="Recent 7-day presence & active streaks">
+                <span>Streak / 7d</span>
                 <Calendar className="w-3 h-3 text-primary-400" />
               </div>
             </th>
@@ -624,20 +628,43 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                       </span>
                     </td>
 
-                    {/* 8. Days Trending */}
+                    {/* 8. Streak & 7d/30d Presence */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border ${
-                          (row.trending_days || 1) >= 7
-                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 font-bold'
-                            : (row.trending_days || 1) >= 3
-                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-semibold'
-                            : 'bg-neutral-800/80 text-neutral-400 border-neutral-700/50'
-                        }`}
-                        title={`Appeared on GitHub trending across ${row.trending_days || 1} distinct calendar days`}
-                      >
-                        📅 {row.trending_days || 1}d
-                      </span>
+                      {(() => {
+                        const d7 = row.days_7d !== undefined ? row.days_7d : 0
+                        const d30 = row.days_30d !== undefined ? row.days_30d : (row.trending_days || 1)
+                        const streak = row.current_streak || 0
+                        const maxStreak = row.max_streak_30d || 0
+
+                        let badgeText = `📅 ${row.trending_days || 1}d`
+                        let badgeStyle = 'bg-neutral-800/80 text-neutral-400 border-neutral-700/50'
+
+                        if (d7 >= 4) {
+                          badgeText = `🔥 ${d7}/7d`
+                          badgeStyle = 'bg-error-500/15 text-error-400 border-error-500/30 font-bold'
+                        } else if (streak >= 3) {
+                          badgeText = `⚡ ${streak}d streak`
+                          badgeStyle = 'bg-amber-500/15 text-amber-400 border-amber-500/30 font-bold'
+                        } else if (d7 >= 2) {
+                          badgeText = `🟢 ${d7}/7d`
+                          badgeStyle = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-semibold'
+                        } else if (d30 >= 10) {
+                          badgeText = `👑 ${d30}/30d`
+                          badgeStyle = 'bg-primary-500/15 text-primary-300 border-primary-500/30 font-semibold'
+                        } else if (streak === 1 || d7 === 1) {
+                          badgeText = `⚡ 1d`
+                          badgeStyle = 'bg-neutral-800/80 text-neutral-300 border-neutral-700/60'
+                        }
+
+                        return (
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border ${badgeStyle}`}
+                            title={`Recent 7d: ${d7}/7 days | 30d: ${d30}/30 days | Active Streak: ${streak} days | Max Streak: ${maxStreak} days | Lifetime: ${row.trending_days || 1} days`}
+                          >
+                            {badgeText}
+                          </span>
+                        )
+                      })()}
                     </td>
 
                     {/* 9. Language (6th in metric order) */}
@@ -721,6 +748,23 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                                 ))}
                               </div>
                             </div>
+                          </div>
+
+                          {/* Rolling Momentum & Streak Stats */}
+                          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                            <span className="text-neutral-400 text-[11px] font-medium mr-1">Trending Presence:</span>
+                            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono text-[11px] text-neutral-300">
+                              7d Hotness: <strong className="text-primary-400">{row.days_7d !== undefined ? `${row.days_7d}/7d` : '—'}</strong>
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono text-[11px] text-neutral-300">
+                              30d Endurance: <strong className="text-emerald-400">{row.days_30d !== undefined ? `${row.days_30d}/30d` : '—'}</strong>
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono text-[11px] text-neutral-300">
+                              Active Streak: <strong className="text-amber-400">{row.current_streak ? `${row.current_streak}d in a row` : '0d'}</strong>
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono text-[11px] text-neutral-300">
+                              Max 30d Streak: <strong className="text-purple-400">{row.max_streak_30d ? `${row.max_streak_30d}d` : '—'}</strong>
+                            </span>
                           </div>
 
                           {/* Quick Start Command */}

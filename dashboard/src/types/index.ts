@@ -27,9 +27,22 @@ export interface UnifiedRepoItem {
   trending_power_score: number
   all_time_rank: number
   trending_days?: number
+  days_7d?: number
+  days_30d?: number
+  current_streak?: number
+  max_streak_30d?: number
   stars_today?: number
   latest_period?: 'daily' | 'weekly' | 'monthly'
 }
 
 export type TimeFilter = 'all' | 'daily' | 'weekly' | 'monthly'
-export type SortOption = 'rank' | 'power_score' | 'growth_velocity' | 'stars' | 'readiness' | 'peak' | 'trending_days'
+export type SortOption =
+  | 'rank'
+  | 'power_score'
+  | 'growth_velocity'
+  | 'stars'
+  | 'readiness'
+  | 'peak'
+  | 'trending_days'
+  | 'days_7d'
+  | 'current_streak'
