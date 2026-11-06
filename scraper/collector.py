@@ -24,6 +24,8 @@ class ScrapedRepo(BaseModel):
     stars_count: int = 0
     forks_count: int = 0
     stars_today: int = 0
+    raw_stars_delta: int = 0
+    daily_velocity: int = 0
 
 
 class TrendingCollector:
@@ -58,6 +60,22 @@ class TrendingCollector:
         if match:
             return TrendingCollector._parse_int(match.group(1))
         return 0
+
+    @staticmethod
+    def normalize_to_daily_velocity(stars_delta: int, period: str) -> int:
+        """
+        Normalizes rolling period delta into a true 24-hour daily velocity rate.
+        - daily: rolling 24 hours -> delta
+        - weekly: rolling 7 days -> round(delta / 7.0)
+        - monthly: rolling 30 days -> round(delta / 30.0)
+        """
+        if stars_delta <= 0:
+            return 0
+        if period == "weekly":
+            return max(1, int(round(stars_delta / 7.0)))
+        elif period == "monthly":
+            return max(1, int(round(stars_delta / 30.0)))
+        return stars_delta
 
     async def fetch_trending(
         self,
@@ -129,10 +147,11 @@ class TrendingCollector:
             forks_str = "".join(forks_texts).strip()
             forks_count = self._parse_int(forks_str)
 
-            # Extract stars today / this period
+            # Extract stars today / this period and normalize to true 24h daily velocity
             stars_today_texts = article.css("span.float-sm-right::text").getall()
             stars_today_str = "".join(stars_today_texts).strip()
-            stars_today = self._parse_stars_today(stars_today_str)
+            raw_stars_delta = self._parse_stars_today(stars_today_str)
+            daily_velocity = self.normalize_to_daily_velocity(raw_stars_delta, period=period)
 
             repos.append(
                 ScrapedRepo(
@@ -145,7 +164,9 @@ class TrendingCollector:
                     language=language,
                     stars_count=stars_count,
                     forks_count=forks_count,
-                    stars_today=stars_today,
+                    stars_today=daily_velocity,  # Backward compatible: holds normalized 24h rate
+                    raw_stars_delta=raw_stars_delta,
+                    daily_velocity=daily_velocity,
                 )
             )
 

@@ -64,3 +64,17 @@ def test_parse_stars_today():
     assert TrendingCollector._parse_stars_today("2,500 stars this week") == 2500
     assert TrendingCollector._parse_stars_today(None) == 0
 
+
+def test_normalize_to_daily_velocity():
+    # Daily: exact rate
+    assert TrendingCollector.normalize_to_daily_velocity(500, "daily") == 500
+    # Weekly: 1400 / 7 = 200
+    assert TrendingCollector.normalize_to_daily_velocity(1400, "weekly") == 200
+    # Monthly: 3000 / 30 = 100
+    assert TrendingCollector.normalize_to_daily_velocity(3000, "monthly") == 100
+    # Edge cases
+    assert TrendingCollector.normalize_to_daily_velocity(0, "daily") == 0
+    assert TrendingCollector.normalize_to_daily_velocity(3, "weekly") == 1  # max(1, round(3/7))
+    assert TrendingCollector.normalize_to_daily_velocity(-5, "daily") == 0
+
+

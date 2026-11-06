@@ -28,3 +28,19 @@ Thumbs.db
 
 supabase/.temp/
 
+
+# auto-context: protected files
+.agents/
+.gemini/
+context.md
+context.local.md
+project-goal.md
+*.local.md
+AGENTS.md
+AGENTS.md.bak
+GEMINI.md
+GEMINI.md.bak
+.auto-context/
+auto-context/
+.env.local
+.env.*.local

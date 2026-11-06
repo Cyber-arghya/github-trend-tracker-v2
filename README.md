@@ -37,12 +37,13 @@ An autonomous, zero-storage GitHub Trending intelligence system that captures Da
 ## 📐 Architecture & Mathematical Formula
 
 ### The All-Time Trending Power Score Formula
-$$\text{Trending Power Score} = \sum_{s \in \text{Snapshots}} \left( (26 - \text{Rank}_s) \times W_{\text{Period}} \times e^{-\lambda \Delta t} \right) + \alpha \log_{10}(\text{Stars})$$
+$$S = \underbrace{w_v \cdot \tilde{V}}_{\text{Breakout Momentum}} + \underbrace{\sum_{d \in \text{Days}} \left( \frac{50.0}{\sqrt{\text{BestRank}_d}} \times e^{-\lambda \Delta t} \right)}_{\text{Smoothed Decayed Presence}} + \underbrace{w_s \cdot \log_{10}(\text{Stars} + 1)}_{\text{Baseline Credibility}}$$
 
-- $\text{Rank}_s$: Rank on GitHub trending page (1 to 25).
-- $W_{\text{Period}}$: Period weighting ($1.0$ for Daily, $2.5$ for Weekly, $5.0$ for Monthly).
-- $\lambda = 0.015$: Exponential half-life decay constant (preserves momentum while favoring active breakouts).
-- $\alpha \log_{10}(\text{Stars})$: Sub-linear baseline credibility dampener.
+- $\tilde{V}$ (**Normalized 24h Velocity**): Log-saturated velocity $[0.0, 1.0]$ derived from rolling window delta ($\text{stars} / \text{days}$). Saturates at 2,000 stars/day.
+- $\text{BestRank}_d$: Peak rank achieved on calendar day $d$ (deduplicated: immune to 4-hour cron repetition).
+- $\frac{1}{\sqrt{\text{Rank}}}$: Sub-linear harmonic gradient (Rank 1 = 1.0, Rank 2 = 0.707, Rank 25 = 0.20) preventing unfair single-rank cliff drops.
+- $\lambda = 0.02$: Exponential half-life decay constant ($t_{1/2} \approx 35$ days).
+- $\text{Trending Days}$: Unique 24-hour calendar days on trending, tracked per repo (`COUNT(DISTINCT recorded_at::date)`).
 
 Implemented natively in PostgreSQL via `CREATE MATERIALIZED VIEW public.mv_all_time_leaderboard`.
 

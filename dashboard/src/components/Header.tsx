@@ -1,9 +1,10 @@
 import React from 'react'
-import { Flame, Database, RefreshCw } from 'lucide-react'
+import { Flame, Database, RefreshCw, Calendar } from 'lucide-react'
 
 interface HeaderProps {
   totalTracked: number
   breakoutCount: number
+  multiDayCount?: number
   isLoading: boolean
   onRefresh: () => void
 }
@@ -11,6 +12,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   totalTracked,
   breakoutCount,
+  multiDayCount = 0,
   isLoading,
   onRefresh,
 }) => {
@@ -37,6 +39,13 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warning-500/10 border border-warning-500/30 text-xs text-warning-400 font-medium">
                 <Flame className="w-3.5 h-3.5 text-warning-400 animate-pulse" />
                 <span>Breakouts: <strong>{breakoutCount}</strong></span>
+              </div>
+            )}
+
+            {multiDayCount > 0 && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 font-medium">
+                <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Sustained (3d+): <strong>{multiDayCount}</strong></span>
               </div>
             )}
 

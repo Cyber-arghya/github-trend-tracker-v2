@@ -26,9 +26,10 @@ export interface UnifiedRepoItem {
   monthly_appearances: number
   trending_power_score: number
   all_time_rank: number
+  trending_days?: number
   stars_today?: number
   latest_period?: 'daily' | 'weekly' | 'monthly'
 }
 
 export type TimeFilter = 'all' | 'daily' | 'weekly' | 'monthly'
-export type SortOption = 'rank' | 'power_score' | 'growth_velocity' | 'stars' | 'readiness' | 'peak'
+export type SortOption = 'rank' | 'power_score' | 'growth_velocity' | 'stars' | 'readiness' | 'peak' | 'trending_days'

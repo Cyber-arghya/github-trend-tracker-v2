@@ -12,6 +12,7 @@ import {
   Sparkles,
   Code2,
   RotateCcw,
+  Calendar,
 } from 'lucide-react'
 import type { UnifiedRepoItem, TimeFilter, SortOption } from '../types'
 
@@ -206,6 +207,10 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
         valA = a.peak_rank
         valB = b.peak_rank
         return sortAsc ? valA - valB : valB - valA
+      } else if (sortBy === 'trending_days') {
+        valA = a.trending_days || 1
+        valB = b.trending_days || 1
+        return sortAsc ? valB - valA : valA - valB
       }
       return 0
     })
@@ -459,17 +464,28 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
               </div>
             </th>
 
-            {/* 6th: Language */}
+            {/* 6th: Days Trending */}
+            <th
+              className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-20 cursor-pointer select-none border-b border-neutral-800"
+              onClick={() => toggleSort('trending_days')}
+            >
+              <div className="flex items-center gap-1 hover:text-neutral-100" title="Total unique calendar days on trending">
+                <span>Days</span>
+                <Calendar className="w-3 h-3 text-primary-400" />
+              </div>
+            </th>
+
+            {/* 7th: Language */}
             <th className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-24 border-b border-neutral-800">
               Language
             </th>
 
-            {/* 7th: Category */}
+            {/* 8th: Category */}
             <th className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-36 border-b border-neutral-800">
               Category
             </th>
 
-            {/* 8th: GitHub Link */}
+            {/* 9th: GitHub Link */}
             <th className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 w-24 text-right border-b border-neutral-800">
               GitHub
             </th>
@@ -478,7 +494,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
         <tbody className="divide-y divide-neutral-800/60">
           {isLoading && repos.length === 0 ? (
             <tr>
-              <td colSpan={10} className="px-4 py-16 text-center text-neutral-500">
+              <td colSpan={11} className="px-4 py-16 text-center text-neutral-500">
                 <div className="flex items-center justify-center gap-2">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500" />
                   <span>Loading trending repositories...</span>
@@ -608,7 +624,23 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                       </span>
                     </td>
 
-                    {/* 8. Language (6th in metric order) */}
+                    {/* 8. Days Trending */}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border ${
+                          (row.trending_days || 1) >= 7
+                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 font-bold'
+                            : (row.trending_days || 1) >= 3
+                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-semibold'
+                            : 'bg-neutral-800/80 text-neutral-400 border-neutral-700/50'
+                        }`}
+                        title={`Appeared on GitHub trending across ${row.trending_days || 1} distinct calendar days`}
+                      >
+                        📅 {row.trending_days || 1}d
+                      </span>
+                    </td>
+
+                    {/* 9. Language (6th in metric order) */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {row.language ? (
                         <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-neutral-800 border border-neutral-700 text-neutral-300">
@@ -619,14 +651,14 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                       )}
                     </td>
 
-                    {/* 9. Category (7th in metric order) */}
+                    {/* 10. Category (7th in metric order) */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-primary-500/10 text-primary-300 border border-primary-500/20">
                         {row.ai_specs?.architecture_type || 'Full-Stack App'}
                       </span>
                     </td>
 
-                    {/* 10. GitHub Link (8th in metric order) */}
+                    {/* 11. GitHub Link (8th in metric order) */}
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
                       <a
                         href={`https://github.com/${row.repo_name}`}
@@ -645,7 +677,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                   {/* ─── Expandable AI Intelligence Card (Readiness & GitHub Link Removed) ─── */}
                   {isExpanded && (
                     <tr>
-                      <td colSpan={10} className="p-0 bg-neutral-950 border-y border-primary-500/30">
+                      <td colSpan={11} className="p-0 bg-neutral-950 border-y border-primary-500/30">
                         <div className="w-full px-4 sm:px-6 py-4 space-y-3.5 animate-in fade-in duration-150">
                           {/* Card Header: Repo Name & Architecture badge ONLY */}
                           <div className="flex items-center justify-between pb-2.5 border-b border-neutral-800">
@@ -723,7 +755,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
             })
           ) : (
             <tr>
-              <td colSpan={10} className="px-4 py-12 text-center text-neutral-500">
+              <td colSpan={11} className="px-4 py-12 text-center text-neutral-500">
                 <div className="flex flex-col items-center justify-center gap-2.5">
                   <p>No repositories found matching your filter criteria.</p>
                   <button

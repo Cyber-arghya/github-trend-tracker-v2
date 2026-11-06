@@ -74,6 +74,7 @@ export default function App() {
               daily_appearances: 1,
               weekly_appearances: 0,
               monthly_appearances: 0,
+              trending_days: 1,
               trending_power_score: r.trending_power_score || 0,
               all_time_rank: idx + 1,
               stars_today: velocity?.stars_today || 0,
@@ -98,11 +99,16 @@ export default function App() {
     return repos.filter((r) => (r.stars_today || 0) >= 1000).length
   }, [repos])
 
+  const multiDayCount = useMemo(() => {
+    return repos.filter((r) => (r.trending_days || 1) >= 3).length
+  }, [repos])
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans">
       <Header
         totalTracked={repos.length}
         breakoutCount={breakoutCount}
+        multiDayCount={multiDayCount}
         isLoading={isLoading}
         onRefresh={fetchData}
       />
