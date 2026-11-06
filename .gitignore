@@ -15,6 +15,7 @@ htmlcov/
 node_modules/
 dist/
 .vercel/
+scratch/
 
 # OS & Editor
 .DS_Store

@@ -15,6 +15,13 @@ import {
   Calendar,
 } from 'lucide-react'
 import type { UnifiedRepoItem, TimeFilter, SortOption, TrendingSnapshotItem } from '../types'
+import {
+  extractAvailableSnapshotDates,
+  resolveEffectiveSnapshotDate,
+  resolveHistoricalSnapshotItems,
+  calculateCoordinatedTimePeriodCounts,
+} from '../lib/timeTravelResolver'
+import { HistoricalDateSelector } from './HistoricalDateSelector'
 
 interface UnifiedTableViewProps {
   repos: UnifiedRepoItem[]
@@ -33,76 +40,23 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, snaps
   const [expandedRepoId, setExpandedRepoId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  // Distinct available dates for the active period
-  const availableDatesForPeriod = useMemo(() => {
-    if (!snapshots || snapshots.length === 0) return []
-    if (timeFilter === 'all') {
-      const dates = Array.from(new Set(snapshots.map((s) => s.recorded_at.slice(0, 10))))
-      return dates.sort().reverse()
-    }
-    const periodSnaps = snapshots.filter((s) => s.period === timeFilter)
-    const dates = Array.from(new Set(periodSnaps.map((s) => s.recorded_at.slice(0, 10))))
-    return dates.sort().reverse()
-  }, [snapshots, timeFilter])
+  // 1. Extract available dates for active time period
+  const availableDatesForPeriod = useMemo(
+    () => extractAvailableSnapshotDates(snapshots, timeFilter),
+    [snapshots, timeFilter]
+  )
 
-  // Effective selected date for the active period
-  const effectiveDate = useMemo(() => {
-    if (selectedDate && availableDatesForPeriod.includes(selectedDate)) {
-      return selectedDate
-    }
-    return availableDatesForPeriod[0] || ''
-  }, [selectedDate, availableDatesForPeriod])
+  // 2. Resolve effective snapshot date
+  const effectiveDate = useMemo(
+    () => resolveEffectiveSnapshotDate(selectedDate, availableDatesForPeriod),
+    [selectedDate, availableDatesForPeriod]
+  )
 
-  // Base repositories depending on time filter and selected snapshot date
-  const baseRepos = useMemo(() => {
-    if (timeFilter === 'all') {
-      return repos
-    }
-
-    if (!snapshots || snapshots.length === 0 || !effectiveDate) {
-      return repos.filter((r) => {
-        if (timeFilter === 'daily') return r.daily_appearances > 0
-        if (timeFilter === 'weekly') return r.weekly_appearances > 0
-        if (timeFilter === 'monthly') return r.monthly_appearances > 0
-        return true
-      })
-    }
-
-    // Match snapshots for chosen period & date
-    const matchingSnaps = snapshots.filter(
-      (s) => s.period === timeFilter && s.recorded_at.startsWith(effectiveDate)
-    )
-
-    // Deduplicate snapshots by repo_id (keeping lowest rank / best position)
-    const snapMap = new Map<string, TrendingSnapshotItem>()
-    matchingSnaps.forEach((s) => {
-      const existing = snapMap.get(s.repo_id)
-      if (!existing || s.rank < existing.rank) {
-        snapMap.set(s.repo_id, s)
-      }
-    })
-
-    const repoLookup = new Map(repos.map((r) => [r.repo_id, r]))
-    const snapshotItems: UnifiedRepoItem[] = []
-
-    // Build ordered list based on that day's snapshot rank
-    Array.from(snapMap.values())
-      .sort((a, b) => a.rank - b.rank)
-      .forEach((snap) => {
-        const repo = repoLookup.get(snap.repo_id)
-        if (repo) {
-          snapshotItems.push({
-            ...repo,
-            snapshot_rank: snap.rank,
-            snapshot_date: effectiveDate,
-            stars_today: snap.stars_today,
-            latest_period: snap.period,
-          })
-        }
-      })
-
-    return snapshotItems
-  }, [timeFilter, repos, snapshots, effectiveDate])
+  // 3. Resolve historical repository items
+  const baseRepos = useMemo(
+    () => resolveHistoricalSnapshotItems(repos, snapshots, timeFilter, effectiveDate),
+    [repos, snapshots, timeFilter, effectiveDate]
+  )
 
   // Master list of all distinct categories & languages in dataset
   const allCategories = useMemo(() => {
@@ -126,38 +80,11 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, snaps
     return Math.max(...repos.map((r) => r.trending_power_score || 0), 100)
   }, [repos])
 
-  // 1. Coordinated Time Counts
-  const timeCounts = useMemo(() => {
-    if (!snapshots || snapshots.length === 0) {
-      const base = repos.filter((r) => {
-        if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) return false
-        if (languageFilter !== 'all' && r.language !== languageFilter) return false
-        return true
-      })
-      return {
-        all: base.length,
-        daily: base.filter((r) => r.daily_appearances > 0).length,
-        weekly: base.filter((r) => r.weekly_appearances > 0).length,
-        monthly: base.filter((r) => r.monthly_appearances > 0).length,
-      }
-    }
-
-    const getPeriodCount = (p: 'daily' | 'weekly' | 'monthly') => {
-      const pSnaps = snapshots.filter((s) => s.period === p)
-      if (pSnaps.length === 0) return 0
-      const targetDate = (p === timeFilter && effectiveDate) ? effectiveDate : pSnaps[0].recorded_at.slice(0, 10)
-      const matching = pSnaps.filter((s) => s.recorded_at.startsWith(targetDate))
-      const uniqueRepoIds = new Set(matching.map((s) => s.repo_id))
-      return uniqueRepoIds.size
-    }
-
-    return {
-      all: repos.length,
-      daily: getPeriodCount('daily'),
-      weekly: getPeriodCount('weekly'),
-      monthly: getPeriodCount('monthly'),
-    }
-  }, [repos, snapshots, timeFilter, effectiveDate, categoryFilter, languageFilter])
+  // Coordinated Time Counts
+  const timeCounts = useMemo(
+    () => calculateCoordinatedTimePeriodCounts(repos, snapshots, timeFilter, effectiveDate),
+    [repos, snapshots, timeFilter, effectiveDate]
+  )
 
   // 2. Coordinated Category Counts
   const categoryCounts = useMemo(() => {
@@ -413,30 +340,14 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, snaps
               ))}
             </div>
 
-            {/* Date Selector Dropdown (Time Travel) */}
-            {timeFilter !== 'all' ? (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-neutral-950 rounded-lg border border-primary-500/50 shadow-sm shadow-primary-500/10 shrink-0 text-xs transition-all hover:border-primary-400">
-                <Calendar className="w-3.5 h-3.5 text-primary-400 shrink-0" />
-                <span className="text-[11px] text-neutral-400 font-medium hidden sm:inline">Date:</span>
-                <select
-                  value={effectiveDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent text-xs font-mono font-bold text-neutral-100 focus:outline-none cursor-pointer pr-1"
-                  title="Choose historical snapshot date"
-                >
-                  {availableDatesForPeriod.map((d, idx) => (
-                    <option key={d} value={d} className="bg-neutral-900 text-neutral-100 py-1">
-                      {d} {idx === 0 ? '(Latest)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-neutral-950/60 rounded-lg border border-neutral-800/80 shrink-0 text-xs text-neutral-500">
-                <Calendar className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
-                <span className="text-[11px] font-mono text-neutral-400">All History</span>
-              </div>
-            )}
+            {/* Historical Date Selector Dropdown (Time Travel) */}
+            <HistoricalDateSelector
+              timeFilter={timeFilter}
+              effectiveDate={effectiveDate}
+              availableDates={availableDatesForPeriod}
+              totalTrackedCount={repos.length}
+              onDateChange={setSelectedDate}
+            />
           </div>
 
           {/* Search Bar (Auto-resolves pasted GitHub URLs) */}

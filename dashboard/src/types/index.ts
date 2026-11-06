@@ -46,7 +46,8 @@ export interface TrendingSnapshotItem {
   recorded_at: string
 }
 
-export type TimeFilter = 'all' | 'daily' | 'weekly' | 'monthly'
+export type TimePeriodFilter = 'all' | 'daily' | 'weekly' | 'monthly'
+export type TimeFilter = TimePeriodFilter
 export type SortOption =
   | 'rank'
   | 'power_score'

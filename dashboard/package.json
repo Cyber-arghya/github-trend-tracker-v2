@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "verify:browser": "node scripts/browser-verify.js",
     "lint": "oxlint",
     "preview": "vite preview"
   },
@@ -25,8 +27,10 @@
     "autoprefixer": "^10.6.2",
     "oxlint": "^1.90.0",
     "postcss": "^8.5.32",
+    "puppeteer": "^25.16.0",
     "tailwindcss": "^4.3.4",
     "typescript": "~7.0.2",
-    "vite": "^8.3.6"
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
   }
 }
