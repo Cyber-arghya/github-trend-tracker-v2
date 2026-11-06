@@ -48,6 +48,11 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     return ['all', ...Array.from(set)]
   }, [repos])
 
+  const maxObservedScore = useMemo(() => {
+    if (repos.length === 0) return 100
+    return Math.max(...repos.map((r) => r.trending_power_score || 0), 100)
+  }, [repos])
+
   // 1. Coordinated Time Counts
   const timeCounts = useMemo(() => {
     const base = repos.filter((r) => {
@@ -241,15 +246,15 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
     setExpandedRepoId(expandedRepoId === id ? null : id)
   }
 
-  // Nuanced score-wise color and shade for Power Score
+  // Nuanced score-wise color and shade for Power Score (Scaled for 0-350 range)
   const getPowerScoreStyle = (score: number) => {
-    if (score >= 75) {
+    if (score >= 180) {
       return {
         text: 'text-emerald-400 font-bold',
         bar: 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-[0_0_8px_rgba(52,211,153,0.35)]',
       }
     }
-    if (score >= 60) {
+    if (score >= 100) {
       return {
         text: 'text-teal-400 font-bold',
         bar: 'bg-gradient-to-r from-teal-400 to-emerald-500 shadow-[0_0_6px_rgba(20,184,166,0.25)]',
@@ -261,7 +266,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
         bar: 'bg-gradient-to-r from-yellow-400 to-amber-500 shadow-[0_0_6px_rgba(251,191,36,0.25)]',
       }
     }
-    if (score >= 40) {
+    if (score >= 25) {
       return {
         text: 'text-orange-400 font-semibold',
         bar: 'bg-gradient-to-r from-amber-500 to-orange-500',
@@ -576,7 +581,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, isLoa
                         <div className="w-14 h-1.5 bg-neutral-800/90 rounded-full overflow-hidden hidden sm:block p-0">
                           <div
                             className={`h-full ${scoreStyle.bar} rounded-full transition-all duration-300`}
-                            style={{ width: `${Math.min(row.trending_power_score, 100)}%` }}
+                            style={{ width: `${Math.min(Math.round(((row.trending_power_score || 0) / maxObservedScore) * 100), 100)}%` }}
                           />
                         </div>
                       </div>

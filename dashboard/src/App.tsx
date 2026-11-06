@@ -24,13 +24,29 @@ export default function App() {
         .order('recorded_at', { ascending: false })
         .limit(200)
 
-      // Map latest stars_today by repo_id
+      // Map latest stars_today by repo_id (Priority: Daily snapshots > Weekly > Monthly)
       const latestVelocityMap = new Map<string, { stars_today: number; period: 'daily' | 'weekly' | 'monthly' }>()
       if (snapData) {
+        // Pass 1: Prioritize daily snapshots (ground truth for true 24h velocity)
         snapData.forEach((s) => {
-          if (!latestVelocityMap.has(s.repo_id)) {
+          if (s.period === 'daily' && !latestVelocityMap.has(s.repo_id)) {
             latestVelocityMap.set(s.repo_id, {
               stars_today: s.stars_today || 0,
+              period: 'daily',
+            })
+          }
+        })
+        // Pass 2: Fallback to weekly/monthly snapshots if daily is not available
+        snapData.forEach((s) => {
+          if (!latestVelocityMap.has(s.repo_id)) {
+            let vel = s.stars_today || 0
+            if (s.period === 'monthly' && vel > 1000) {
+              vel = Math.max(1, Math.round(vel / 30))
+            } else if (s.period === 'weekly' && vel > 1000) {
+              vel = Math.max(1, Math.round(vel / 7))
+            }
+            latestVelocityMap.set(s.repo_id, {
+              stars_today: vel,
               period: s.period as 'daily' | 'weekly' | 'monthly',
             })
           }
@@ -42,7 +58,7 @@ export default function App() {
           const velocity = latestVelocityMap.get(row.repo_id)
           return {
             ...row,
-            stars_today: velocity?.stars_today || 0,
+            stars_today: velocity?.stars_today !== undefined ? velocity.stars_today : (row.stars_today || 0),
             latest_period: velocity?.period || 'daily',
           }
         })
