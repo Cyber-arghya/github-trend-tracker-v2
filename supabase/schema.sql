@@ -69,7 +69,7 @@ presence_summary AS (
         COUNT(DISTINCT dp.snapshot_date) AS trending_days,
         SUM(
             (1.0 / SQRT(GREATEST(dp.best_rank_of_day, 1))) * 50.0 *
-            EXP(-0.02 * GREATEST(EXTRACT(EPOCH FROM (CURRENT_DATE - dp.snapshot_date)) / 86400.0, 0.0))
+            EXP(-0.02 * GREATEST((CURRENT_DATE - dp.snapshot_date)::double precision, 0.0))
         ) AS presence_score
     FROM daily_presence dp
     GROUP BY dp.repo_id
