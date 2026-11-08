@@ -177,3 +177,4 @@ export function calculateCoordinatedTimePeriodCounts(
     monthly: getDistinctRepoCountForPeriod('monthly'),
   }
 }
+

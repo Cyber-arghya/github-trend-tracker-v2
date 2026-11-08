@@ -71,3 +71,4 @@ export const HistoricalDateSelector: React.FC<HistoricalDateSelectorProps> = ({
     </div>
   )
 }
+
