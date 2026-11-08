@@ -117,3 +117,4 @@ export const TableHeader: React.FC<TableHeaderProps> = ({ sortBy, onSort }) => {
     </thead>
   )
 }
+

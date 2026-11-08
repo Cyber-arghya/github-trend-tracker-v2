@@ -110,3 +110,4 @@ export function getStreakBadgeInfo(
   const title = `Recent 7d: ${d7}/7 days | 30d: ${d30}/30 days | Active Streak: ${streak} days | Max Streak: ${maxStreak} days | Lifetime: ${lifetime} days`
   return { text, style, title }
 }
+

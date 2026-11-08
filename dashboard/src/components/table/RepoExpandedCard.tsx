@@ -129,3 +129,4 @@ export const RepoExpandedCard: React.FC<RepoExpandedCardProps> = ({
     </div>
   )
 }
+

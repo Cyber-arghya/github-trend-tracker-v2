@@ -53,3 +53,4 @@ describe('tableStyles (Unit Tests)', () => {
     expect(king30d.text).toBe('👑 15/30d')
   })
 })
+

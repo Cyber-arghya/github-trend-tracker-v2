@@ -250,3 +250,4 @@ export const RepoTableRow: React.FC<RepoTableRowProps> = ({
     </React.Fragment>
   )
 }
+

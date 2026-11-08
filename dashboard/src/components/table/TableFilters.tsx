@@ -260,3 +260,4 @@ export const TableFilters: React.FC<TableFiltersProps> = ({
     </div>
   )
 }
+

@@ -93,3 +93,4 @@ export const TableEmptyState: React.FC<TableEmptyStateProps> = ({
 
   return <div>{content}</div>
 }
+
