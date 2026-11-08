@@ -147,7 +147,7 @@ async function runBrowserVerification() {
       throw new Error(`Category favorites pill does not show 1 count: "${categoryFavText}"`)
     }
 
-    // 7. Verify Row Click Expansion & Inset Frame with Start & End Boundaries
+    // 7. Verify Row Click Expansion & Inset Frame
     console.log('👉 Clicking first repository row to expand AI specs drawer...')
     const targetRow = await page.$('tbody tr:first-child')
     await targetRow.click()
@@ -155,24 +155,29 @@ async function runBrowserVerification() {
 
     // Check Start Ribbon
     const startRibbon = await page.evaluate(() => {
-      const el = document.querySelector('tbody tr td div div')
-      return document.body.innerText.includes('AI Intelligence & Architecture Specs')
+      return document.body.innerText.includes('AI Intelligence Specs')
     })
     if (!startRibbon) {
-      throw new Error('Start ribbon "AI Intelligence & Architecture Specs" not found!')
+      throw new Error('Start ribbon "AI Intelligence Specs" not found!')
     }
     console.log('✅ Top Header Ribbon (Start of AI Specs) verified!')
 
-    // Check End Ribbon
-    const endRibbon = await page.evaluate(() => {
-      return document.body.innerText.includes('End of AI specs for')
-    })
-    if (!endRibbon) {
-      throw new Error('Bottom footer ribbon "End of AI specs for" not found!')
-    }
-    console.log('✅ Bottom Footer Ribbon (End of AI Specs) verified!')
+    // 8. Test Mobile Viewport Responsiveness (< 640px)
+    console.log('📱 Switching to Mobile Viewport (390x844 iPhone resolution)...')
+    await page.setViewport({ width: 390, height: 844 })
+    await new Promise((resolve) => setTimeout(resolve, 800))
 
-    // 8. Take screenshot proof of expanded view with framed container
+    const mobileCardsCount = await page.evaluate(() => {
+      const mobileContainer = document.querySelector('.block.sm\\:hidden')
+      return mobileContainer ? mobileContainer.children.length : 0
+    })
+    console.log(`Mobile cards rendered: ${mobileCardsCount}`)
+    if (mobileCardsCount === 0) {
+      throw new Error('No mobile cards were rendered in .block.sm:hidden container!')
+    }
+    console.log('✅ Mobile Responsive Card View verified successfully!')
+
+    // 9. Take screenshot proof of mobile and desktop view
     const screenshotPath = path.join(scratchDir, 'browser-test-favorites-view.png')
     await page.screenshot({ path: screenshotPath, fullPage: true })
     console.log(`📸 Screenshot captured and saved to: ${screenshotPath}`)

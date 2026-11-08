@@ -35,28 +35,34 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Quick Stats & Refresh */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-800/80 border border-neutral-700/60 text-xs text-neutral-300">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-neutral-800/80 border border-neutral-700/60 text-xs text-neutral-300 shrink-0">
               <Database className="w-3.5 h-3.5 text-primary-400" />
-              <span>Tracked: <strong className="text-neutral-50">{totalTracked}</strong></span>
+              <span>
+                <span className="hidden xs:inline">Tracked: </span>
+                <strong className="text-neutral-50">{totalTracked}</strong>
+              </span>
             </div>
 
             {breakoutCount > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warning-500/10 border border-warning-500/30 text-xs text-warning-400 font-medium">
+              <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-warning-500/10 border border-warning-500/30 text-xs text-warning-400 font-medium shrink-0">
                 <Flame className="w-3.5 h-3.5 text-warning-400 animate-pulse" />
-                <span>Breakouts: <strong>{breakoutCount}</strong></span>
+                <span>
+                  <span className="hidden xs:inline">Breakouts: </span>
+                  <strong>{breakoutCount}</strong>
+                </span>
               </div>
             )}
 
             {multiDayCount > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 font-medium">
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 font-medium shrink-0">
                 <Calendar className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Sustained (3d+): <strong>{multiDayCount}</strong></span>
               </div>
             )}
 
             {activeStreaksCount > 0 && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-500/10 border border-primary-500/30 text-xs text-primary-300 font-medium hidden md:flex">
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-500/10 border border-primary-500/30 text-xs text-primary-300 font-medium shrink-0">
                 <Zap className="w-3.5 h-3.5 text-primary-400" />
                 <span>Active Streaks: <strong>{activeStreaksCount}</strong></span>
               </div>
@@ -66,18 +72,21 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onShowFavorites}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 font-medium hover:bg-rose-500/20 transition-all hover:scale-105"
+                className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 font-medium hover:bg-rose-500/20 transition-all shrink-0 hover:scale-105"
                 title="View your saved favorites"
               >
                 <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
-                <span>Favorites: <strong>{favoritesCount}</strong></span>
+                <span>
+                  <span className="hidden xs:inline">Favs: </span>
+                  <strong>{favoritesCount}</strong>
+                </span>
               </button>
             )}
 
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              className="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-neutral-50 transition-all disabled:opacity-50"
+              className="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-neutral-50 transition-all disabled:opacity-50 shrink-0"
               title="Refresh Live Data"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
