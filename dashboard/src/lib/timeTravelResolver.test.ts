@@ -4,6 +4,8 @@ import {
   resolveEffectiveSnapshotDate,
   resolveHistoricalSnapshotItems,
   calculateCoordinatedTimePeriodCounts,
+  formatLastUpdated,
+  calculateRepoSnapshotMetrics,
 } from './timeTravelResolver'
 import type { UnifiedRepoItem, TrendingSnapshotItem } from '../types'
 
@@ -76,7 +78,7 @@ const mockSnapshots: TrendingSnapshotItem[] = [
     stars_today: 85,
     recorded_at: '2026-11-06T12:00:00Z',
   },
-  // Duplicate run on 2026-11-06 Daily: repo-1 improved to #1
+  // Duplicate run on 2026-11-06 Daily: repo-1 improved to #1 (+95)
   {
     id: 's3',
     repo_id: 'repo-1',
@@ -106,6 +108,60 @@ const mockSnapshots: TrendingSnapshotItem[] = [
 ]
 
 describe('Time Travel Snapshot Resolver (Unit & Integration Tests)', () => {
+  describe('formatLastUpdated', () => {
+    it('returns fallback dashes when timestamp is missing or invalid', () => {
+      expect(formatLastUpdated(null).display).toBe('—')
+      expect(formatLastUpdated('').display).toBe('—')
+      expect(formatLastUpdated('invalid-date').display).toBe('—')
+    })
+
+    it('formats a valid ISO timestamp with UTC time and relative indicator', () => {
+      const result = formatLastUpdated('2026-11-08T03:23:50Z')
+      expect(result.display).toContain('UTC')
+      expect(result.full).toContain('2026-11-08T03:23:50.000Z')
+    })
+  })
+
+  describe('calculateRepoSnapshotMetrics', () => {
+    it('returns empty map if snapshots are missing or empty', () => {
+      expect(calculateRepoSnapshotMetrics([]).size).toBe(0)
+      expect(calculateRepoSnapshotMetrics(null as any).size).toBe(0)
+    })
+
+    it('accurately calculates consecutive streaks, 7d/30d presence, and peak rank', () => {
+      const multiDaySnapshots: TrendingSnapshotItem[] = [
+        { id: '1', repo_id: 'rA', rank: 5, period: 'daily', stars_today: 50, recorded_at: '2026-11-06T10:00:00Z' },
+        { id: '2', repo_id: 'rA', rank: 2, period: 'daily', stars_today: 80, recorded_at: '2026-11-07T10:00:00Z' },
+        { id: '3', repo_id: 'rA', rank: 1, period: 'daily', stars_today: 120, recorded_at: '2026-11-08T02:00:00Z' },
+        // rB trended 2026-11-05 and 2026-11-06, then went cold
+        { id: '4', repo_id: 'rB', rank: 10, period: 'daily', stars_today: 20, recorded_at: '2026-11-05T10:00:00Z' },
+        { id: '5', repo_id: 'rB', rank: 8, period: 'daily', stars_today: 30, recorded_at: '2026-11-06T10:00:00Z' },
+      ]
+
+      const metrics = calculateRepoSnapshotMetrics(multiDaySnapshots, new Date('2026-11-08T12:00:00Z'))
+
+      // rA: 3 consecutive days up to today -> active streak 3, max streak 3, days_7d 3, peak rank 1
+      const mA = metrics.get('rA')
+      expect(mA).toBeDefined()
+      expect(mA?.trending_days).toBe(3)
+      expect(mA?.days_7d).toBe(3)
+      expect(mA?.days_30d).toBe(3)
+      expect(mA?.current_streak).toBe(3)
+      expect(mA?.max_streak_30d).toBe(3)
+      expect(mA?.peak_rank).toBe(1)
+      expect(mA?.latest_velocity).toBe(120)
+
+      // rB: 2 consecutive days, but ended on Nov 6 (2 days ago from Nov 8) -> active streak 0, max streak 2
+      const mB = metrics.get('rB')
+      expect(mB).toBeDefined()
+      expect(mB?.trending_days).toBe(2)
+      expect(mB?.days_7d).toBe(2)
+      expect(mB?.current_streak).toBe(0)
+      expect(mB?.max_streak_30d).toBe(2)
+      expect(mB?.peak_rank).toBe(8)
+    })
+  })
+
   describe('extractAvailableSnapshotDates', () => {
     it('returns empty array when snapshots are empty or invalid', () => {
       expect(extractAvailableSnapshotDates([], 'daily')).toEqual([])
@@ -153,13 +209,13 @@ describe('Time Travel Snapshot Resolver (Unit & Integration Tests)', () => {
       expect(items[0].repo_id).toBe('repo-1')
     })
 
-    it('resolves historical snapshot for 2026-11-06 daily and deduplicates keeping best rank', () => {
+    it('resolves historical snapshot for 2026-11-06 daily, breaking ties and assigning unique sequential ranks', () => {
       const items = resolveHistoricalSnapshotItems(mockRepositories, mockSnapshots, 'daily', '2026-11-06')
       expect(items.length).toBe(2)
-      // repo-1 and repo-2 both had rank 1 (repo-1 was updated in second run)
-      const repoIds = items.map((r) => r.repo_id)
-      expect(repoIds).toContain('repo-1')
-      expect(repoIds).toContain('repo-2')
+      // Both repo-1 and repo-2 had rank 1 in raw data; tie-breaker assigns unique #1 and #2
+      expect(items[0].snapshot_rank).toBe(1)
+      expect(items[1].snapshot_rank).toBe(2)
+      expect(items[0].snapshot_rank).not.toBe(items[1].snapshot_rank)
       expect(items[0].snapshot_date).toBe('2026-11-06')
       expect(items[0].latest_period).toBe('daily')
     })
@@ -203,4 +259,3 @@ describe('Time Travel Snapshot Resolver (Unit & Integration Tests)', () => {
     })
   })
 })
-

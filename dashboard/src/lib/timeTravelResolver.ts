@@ -1,5 +1,201 @@
 import type { UnifiedRepoItem, TrendingSnapshotItem, TimePeriodFilter } from '../types'
 
+export interface RepoSnapshotMetrics {
+  trending_days: number
+  days_7d: number
+  days_30d: number
+  current_streak: number
+  max_streak_30d: number
+  peak_rank: number
+  latest_velocity: number
+  latest_period: 'daily' | 'weekly' | 'monthly'
+}
+
+/**
+ * Formats a snapshot timestamp into a human-readable "Last updated" display string
+ * and full UTC/local string for tooltips.
+ */
+export function formatLastUpdated(isoString?: string | null): { display: string; full: string } {
+  if (!isoString || typeof isoString !== 'string') {
+    return { display: '—', full: 'No update timestamp recorded' }
+  }
+
+  const date = new Date(isoString)
+  if (isNaN(date.getTime())) {
+    return { display: '—', full: 'Invalid timestamp format' }
+  }
+
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / (60 * 1000))
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  let relative = ''
+  if (diffMins < 1) relative = 'Just now'
+  else if (diffMins < 60) relative = `${diffMins}m ago`
+  else if (diffHours < 24) relative = `${diffHours}h ago`
+  else relative = `${diffDays}d ago`
+
+  const formattedUtc = date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    hour12: false,
+  }) + ' UTC'
+
+  return {
+    display: `${formattedUtc} (${relative})`,
+    full: `Last scraped: ${date.toISOString()}\nLocal: ${date.toLocaleString()}`,
+  }
+}
+
+/**
+ * Calculates rolling metrics, consecutive day streaks (Gaps & Islands),
+ * 7d hotness, 30d endurance, and peak rank directly from raw snapshots.
+ * Provides resilient, self-healing metrics independent of materialized view staleness.
+ */
+export function calculateRepoSnapshotMetrics(
+  snapshots: TrendingSnapshotItem[],
+  referenceDateInput?: Date | string
+): Map<string, RepoSnapshotMetrics> {
+  const metricsMap = new Map<string, RepoSnapshotMetrics>()
+  if (!Array.isArray(snapshots) || snapshots.length === 0) {
+    return metricsMap
+  }
+
+  // 1. Group snapshots by repo_id and track newest timestamp
+  const snapshotsByRepo = new Map<string, TrendingSnapshotItem[]>()
+  let newestTimestamp = ''
+
+  for (const s of snapshots) {
+    if (!s || !s.repo_id) continue
+    if (!snapshotsByRepo.has(s.repo_id)) {
+      snapshotsByRepo.set(s.repo_id, [])
+    }
+    snapshotsByRepo.get(s.repo_id)!.push(s)
+
+    if (s.recorded_at && (!newestTimestamp || s.recorded_at > newestTimestamp)) {
+      newestTimestamp = s.recorded_at
+    }
+  }
+
+  // Determine reference date (passed in, or newest snapshot date, or today)
+  let refDate: Date
+  if (referenceDateInput) {
+    refDate = typeof referenceDateInput === 'string' ? new Date(referenceDateInput) : referenceDateInput
+  } else if (newestTimestamp && newestTimestamp.length >= 10) {
+    refDate = new Date(newestTimestamp.slice(0, 10) + 'T00:00:00Z')
+  } else {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    refDate = new Date(todayStr + 'T00:00:00Z')
+  }
+
+  const ONE_DAY_MS = 86400000
+
+  for (const [repoId, repoSnaps] of snapshotsByRepo.entries()) {
+    // Collect distinct calendar dates (YYYY-MM-DD) sorted chronologically
+    const distinctDates = Array.from(
+      new Set(
+        repoSnaps
+          .filter((s) => typeof s.recorded_at === 'string' && s.recorded_at.length >= 10)
+          .map((s) => s.recorded_at.slice(0, 10))
+      )
+    ).sort()
+
+    const trending_days = distinctDates.length
+
+    // Calculate rolling 7d and 30d window presence counts
+    let days_7d = 0
+    let days_30d = 0
+    for (const dateStr of distinctDates) {
+      const snapDate = new Date(dateStr + 'T00:00:00Z')
+      const diffDays = Math.floor((refDate.getTime() - snapDate.getTime()) / ONE_DAY_MS)
+      if (diffDays >= 0 && diffDays < 7) {
+        days_7d++
+      }
+      if (diffDays >= 0 && diffDays < 30) {
+        days_30d++
+      }
+    }
+
+    // Best (lowest) rank observed across snapshots
+    let peak_rank = 99
+    for (const s of repoSnaps) {
+      if (typeof s.rank === 'number' && s.rank > 0 && s.rank < peak_rank) {
+        peak_rank = s.rank
+      }
+    }
+
+    // Gaps and Islands: consecutive day streak calculation
+    let current_streak = 0
+    let max_streak_30d = 0
+    let streakCounter = 0
+    let prevDateTime: number | null = null
+
+    for (const dateStr of distinctDates) {
+      const curDateTime = new Date(dateStr + 'T00:00:00Z').getTime()
+      if (prevDateTime !== null) {
+        const diffDays = Math.round((curDateTime - prevDateTime) / ONE_DAY_MS)
+        if (diffDays === 1) {
+          streakCounter++
+        } else {
+          streakCounter = 1
+        }
+      } else {
+        streakCounter = 1
+      }
+
+      if (streakCounter > max_streak_30d) {
+        max_streak_30d = streakCounter
+      }
+      prevDateTime = curDateTime
+    }
+
+    // Active streak: last snapshot must be on reference date or 1 day prior
+    if (distinctDates.length > 0) {
+      const lastDateStr = distinctDates[distinctDates.length - 1]
+      const lastDateTime = new Date(lastDateStr + 'T00:00:00Z').getTime()
+      const diffFromRef = Math.floor((refDate.getTime() - lastDateTime) / ONE_DAY_MS)
+      current_streak = diffFromRef <= 1 ? streakCounter : 0
+    }
+
+    // Latest velocity (prioritize daily snapshot over weekly/monthly)
+    let latest_velocity = 0
+    let latest_period: 'daily' | 'weekly' | 'monthly' = 'daily'
+
+    const sortedSnaps = [...repoSnaps].sort((a, b) => {
+      const tA = a.recorded_at || ''
+      const tB = b.recorded_at || ''
+      return tB.localeCompare(tA)
+    })
+
+    const dailySnap = sortedSnaps.find((s) => s.period === 'daily')
+    if (dailySnap) {
+      latest_velocity = dailySnap.stars_today || 0
+      latest_period = 'daily'
+    } else if (sortedSnaps[0]) {
+      latest_velocity = sortedSnaps[0].stars_today || 0
+      latest_period = sortedSnaps[0].period
+    }
+
+    metricsMap.set(repoId, {
+      trending_days,
+      days_7d,
+      days_30d,
+      current_streak,
+      max_streak_30d,
+      peak_rank,
+      latest_velocity,
+      latest_period,
+    })
+  }
+
+  return metricsMap
+}
+
 /**
  * Extracts all unique snapshot dates (YYYY-MM-DD) available for a given time period.
  * Dates are sorted in reverse chronological order (newest first).
@@ -50,7 +246,7 @@ export function resolveEffectiveSnapshotDate(
  * Resolves repository items to display for the active period and snapshot date.
  * - For 'all': returns the full all-time repository catalog.
  * - For 'daily', 'weekly', 'monthly': extracts snapshots for target date, deduplicates
- *   by repo_id keeping the best rank, merges with catalog metadata, and sorts by that day's rank.
+ *   by repo_id keeping best rank, breaks ties cleanly, and assigns unique sequential ranks (1..N).
  */
 export function resolveHistoricalSnapshotItems(
   allRepositories: UnifiedRepoItem[],
@@ -90,7 +286,7 @@ export function resolveHistoricalSnapshotItems(
     return []
   }
 
-  // 2. Deduplicate snapshots by repo_id (keeping best / lowest rank if multiple cron runs occurred)
+  // 2. Deduplicate snapshots by repo_id (keeping best rank if multiple cron runs occurred in one day)
   const bestSnapshotByRepoId = new Map<string, TrendingSnapshotItem>()
   for (const snapshot of matchingDateSnapshots) {
     const existingEntry = bestSnapshotByRepoId.get(snapshot.repo_id)
@@ -105,18 +301,35 @@ export function resolveHistoricalSnapshotItems(
     repositoryCatalogLookup.set(repo.repo_id, repo)
   }
 
-  // 4. Build output list sorted by that day's rank
-  const resolvedSnapshotItems: UnifiedRepoItem[] = []
-  const sortedSnapshots = Array.from(bestSnapshotByRepoId.values()).sort(
-    (a, b) => a.rank - b.rank
-  )
+  // 4. Sort snapshots deterministically with tie-breakers:
+  //    - Primary: rank ASC (1, 2, 3...)
+  //    - Secondary: stars_today DESC (higher velocity breaks rank ties)
+  //    - Tertiary: trending_power_score DESC
+  //    - Quaternary: stars_count DESC
+  const sortedSnapshots = Array.from(bestSnapshotByRepoId.values()).sort((a, b) => {
+    if (a.rank !== b.rank) {
+      return a.rank - b.rank
+    }
+    const velDiff = (b.stars_today || 0) - (a.stars_today || 0)
+    if (velDiff !== 0) return velDiff
 
-  for (const snapshot of sortedSnapshots) {
+    const repoA = repositoryCatalogLookup.get(a.repo_id)
+    const repoB = repositoryCatalogLookup.get(b.repo_id)
+    const scoreDiff = (repoB?.trending_power_score || 0) - (repoA?.trending_power_score || 0)
+    if (scoreDiff !== 0) return scoreDiff
+
+    return (repoB?.stars_count || 0) - (repoA?.stars_count || 0)
+  })
+
+  // 5. Build output list with GUARANTEED unique sequential ranks (idx + 1)
+  const resolvedSnapshotItems: UnifiedRepoItem[] = []
+  for (let idx = 0; idx < sortedSnapshots.length; idx++) {
+    const snapshot = sortedSnapshots[idx]
     const repoMetadata = repositoryCatalogLookup.get(snapshot.repo_id)
     if (repoMetadata) {
       resolvedSnapshotItems.push({
         ...repoMetadata,
-        snapshot_rank: snapshot.rank,
+        snapshot_rank: idx + 1, // Guaranteed unique rank: #1, #2, #3, ..., #N
         snapshot_date: targetSnapshotDate,
         stars_today: snapshot.stars_today,
         latest_period: snapshot.period,
@@ -177,4 +390,3 @@ export function calculateCoordinatedTimePeriodCounts(
     monthly: getDistinctRepoCountForPeriod('monthly'),
   }
 }
-

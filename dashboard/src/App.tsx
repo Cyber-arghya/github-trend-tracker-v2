@@ -3,10 +3,12 @@ import { Header } from './components/Header'
 import { UnifiedTableView } from './components/UnifiedTableView'
 import { supabase } from './lib/supabase'
 import type { UnifiedRepoItem, TrendingSnapshotItem } from './types'
+import { calculateRepoSnapshotMetrics } from './lib/timeTravelResolver'
 
 export default function App() {
   const [repos, setRepos] = useState<UnifiedRepoItem[]>([])
   const [snapshots, setSnapshots] = useState<TrendingSnapshotItem[]>([])
+  const [lastUpdatedIso, setLastUpdatedIso] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   const fetchData = useCallback(async () => {
@@ -25,9 +27,9 @@ export default function App() {
         .order('recorded_at', { ascending: false })
         .limit(1000)
 
-      // Map latest stars_today by repo_id (Priority: Daily snapshots > Weekly > Monthly)
-      const latestVelocityMap = new Map<string, { stars_today: number; period: 'daily' | 'weekly' | 'monthly' }>()
-      if (snapData) {
+      let snapshotMetricsMap = new Map<string, ReturnType<typeof calculateRepoSnapshotMetrics> extends Map<string, infer M> ? M : never>()
+
+      if (snapData && snapData.length > 0) {
         const normalizedSnaps: TrendingSnapshotItem[] = (snapData as TrendingSnapshotItem[]).map((s) => {
           let vel = s.stars_today || 0
           if (s.period === 'monthly' && vel > 1000) {
@@ -39,33 +41,28 @@ export default function App() {
         })
         setSnapshots(normalizedSnaps)
 
-        // Pass 1: Prioritize daily snapshots (ground truth for true 24h velocity)
-        normalizedSnaps.forEach((s) => {
-          if (s.period === 'daily' && !latestVelocityMap.has(s.repo_id)) {
-            latestVelocityMap.set(s.repo_id, {
-              stars_today: s.stars_today || 0,
-              period: 'daily',
-            })
-          }
-        })
-        // Pass 2: Fallback to weekly/monthly snapshots if daily is not available
-        normalizedSnaps.forEach((s) => {
-          if (!latestVelocityMap.has(s.repo_id)) {
-            latestVelocityMap.set(s.repo_id, {
-              stars_today: s.stars_today || 0,
-              period: s.period,
-            })
-          }
-        })
+        // Capture newest snapshot timestamp for Last Updated indicator
+        if (normalizedSnaps[0]?.recorded_at) {
+          setLastUpdatedIso(normalizedSnaps[0].recorded_at)
+        }
+
+        // Calculate accurate rolling metrics, active streaks, 7d/30d presence directly from snapshots
+        snapshotMetricsMap = calculateRepoSnapshotMetrics(normalizedSnaps)
       }
 
       if (!mvError && mvData && mvData.length > 0) {
         const unified: UnifiedRepoItem[] = mvData.map((row) => {
-          const velocity = latestVelocityMap.get(row.repo_id)
+          const metrics = snapshotMetricsMap.get(row.repo_id)
           return {
             ...row,
-            stars_today: velocity?.stars_today !== undefined ? velocity.stars_today : (row.stars_today || 0),
-            latest_period: velocity?.period || 'daily',
+            stars_today: metrics ? metrics.latest_velocity : (row.stars_today || 0),
+            latest_period: metrics ? metrics.latest_period : (row.latest_period || 'daily'),
+            trending_days: metrics ? metrics.trending_days : (row.trending_days || 1),
+            days_7d: metrics ? metrics.days_7d : (row.days_7d ?? 0),
+            days_30d: metrics ? metrics.days_30d : (row.days_30d ?? 1),
+            current_streak: metrics ? metrics.current_streak : (row.current_streak ?? 0),
+            max_streak_30d: metrics ? metrics.max_streak_30d : (row.max_streak_30d ?? 1),
+            peak_rank: metrics ? metrics.peak_rank : (row.peak_rank ?? 99),
           }
         })
         setRepos(unified)
@@ -78,7 +75,7 @@ export default function App() {
 
         if (fallbackRepos) {
           const unified: UnifiedRepoItem[] = fallbackRepos.map((r, idx) => {
-            const velocity = latestVelocityMap.get(r.id)
+            const metrics = snapshotMetricsMap.get(r.id)
             return {
               repo_id: r.id,
               repo_name: r.repo_name,
@@ -92,15 +89,19 @@ export default function App() {
               first_seen_at: r.first_seen_at,
               last_seen_at: r.last_seen_at,
               total_appearances: 1,
-              peak_rank: 1,
+              peak_rank: metrics ? metrics.peak_rank : 1,
               daily_appearances: 1,
               weekly_appearances: 0,
               monthly_appearances: 0,
-              trending_days: 1,
+              trending_days: metrics ? metrics.trending_days : 1,
+              days_7d: metrics ? metrics.days_7d : 0,
+              days_30d: metrics ? metrics.days_30d : 1,
+              current_streak: metrics ? metrics.current_streak : 0,
+              max_streak_30d: metrics ? metrics.max_streak_30d : 1,
               trending_power_score: r.trending_power_score || 0,
               all_time_rank: idx + 1,
-              stars_today: velocity?.stars_today || 0,
-              latest_period: velocity?.period || 'daily',
+              stars_today: metrics ? metrics.latest_velocity : 0,
+              latest_period: metrics ? metrics.latest_period : 'daily',
             }
           })
           setRepos(unified)
@@ -141,7 +142,12 @@ export default function App() {
       />
 
       <main className="flex-1 max-w-[1720px] w-full mx-auto px-2 sm:px-4 pt-1.5 pb-4">
-        <UnifiedTableView repos={repos} snapshots={snapshots} isLoading={isLoading} />
+        <UnifiedTableView
+          repos={repos}
+          snapshots={snapshots}
+          lastUpdatedIso={lastUpdatedIso}
+          isLoading={isLoading}
+        />
       </main>
 
       <footer className="border-t border-neutral-900 bg-neutral-950 py-2.5 text-center text-xs text-neutral-500">

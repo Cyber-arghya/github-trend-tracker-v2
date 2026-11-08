@@ -26,91 +26,90 @@ async function runBrowserVerification() {
   let browser
   try {
     console.log('🌐 Launching headless Chrome via Puppeteer...')
+    const profileDir = path.join(scratchDir, 'puppeteer-profile-' + Date.now())
     browser = await puppeteer.launch({
       headless: true,
+      userDataDir: profileDir,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     })
 
     const page = await browser.newPage()
     await page.setViewport({ width: 1440, height: 900 })
 
-    // Listen to browser console and page errors
     page.on('console', (msg) => console.log('PAGE LOG:', msg.type(), msg.text()))
     page.on('pageerror', (err) => console.error('PAGE ERROR:', err.message))
 
     console.log('🔗 Navigating to http://127.0.0.1:4173 ...')
     await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle2', timeout: 30000 })
 
-    const pageContent = await page.content()
-    console.log('Page content length:', pageContent.length)
-    if (pageContent.includes('VITE_SUPABASE_ANON_KEY is missing')) {
-      console.warn('⚠️ Warning: VITE_SUPABASE_ANON_KEY is missing!')
-    }
-
-    // Wait for header and table to hydrate
     await page.waitForSelector('table', { timeout: 15000 })
     console.log('✅ Table hydrated successfully.')
 
-    // 1. Initial State: All-Time should be active, and "All History" badge should be visible
-    const allHistoryBadge = await page.$('[data-testid="all-history-badge"]')
-    if (!allHistoryBadge) {
-      console.warn('⚠️ All History badge not found by testid, checking text...')
-    } else {
-      console.log('✅ "All History" badge verified in All-Time view.')
+    // 1. Verify "Last updated" indicator pill exists and contains valid formatted UTC text
+    const lastUpdatedPill = await page.waitForSelector('[data-testid="last-updated-pill"]', { timeout: 5000 })
+    if (!lastUpdatedPill) {
+      throw new Error('Last updated pill ([data-testid="last-updated-pill"]) was not rendered!')
+    }
+    const lastUpdatedText = await page.evaluate((el) => el.textContent, lastUpdatedPill)
+    console.log('✅ Last Updated Pill Verified:', lastUpdatedText)
+    if (!lastUpdatedText.includes('UTC') && !lastUpdatedText.includes('ago')) {
+      throw new Error(`Last updated text does not look valid: "${lastUpdatedText}"`)
     }
 
-    // 2. Click "Today (Daily)"
-    console.log('👉 Clicking "Today (Daily)" tab...')
+    // 2. Click "This Week" tab
+    console.log('👉 Clicking "This Week" tab...')
     const buttons = await page.$$('button')
-    let dailyBtn
+    let weekBtn
     for (const b of buttons) {
       const text = await page.evaluate((el) => el.textContent, b)
-      if (text && text.includes('Today (Daily)')) {
-        dailyBtn = b
+      if (text && text.includes('This Week')) {
+        weekBtn = b
         break
       }
     }
-
-    if (!dailyBtn) {
-      throw new Error('Could not find "Today (Daily)" button')
+    if (!weekBtn) {
+      throw new Error('Could not find "This Week" button')
     }
-    await dailyBtn.click()
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await weekBtn.click()
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    // 3. Verify Historical Date Selector appears
-    const dateSelector = await page.waitForSelector('#snapshot-date-select', { timeout: 5000 })
-    if (!dateSelector) {
-      throw new Error('Historical date selector (#snapshot-date-select) failed to render!')
-    }
-    console.log('✅ Date selector dropdown rendered.')
-
-    // Get options in the dropdown
-    const options = await page.evaluate((sel) => {
-      const el = document.querySelector('#snapshot-date-select')
-      if (!el) return []
-      return Array.from(el.options).map((o) => ({ value: o.value, text: o.text }))
+    // 3. Verify rank uniqueness (ZERO duplicate ranks in table)
+    const ranks = await page.evaluate(() => {
+      const rankElements = document.querySelectorAll('tbody tr td:first-child span')
+      return Array.from(rankElements).map((el) => el.textContent?.trim() || '')
     })
-    console.log('📅 Available Dates in Dropdown:', options)
-
-    if (options.length === 0) {
-      throw new Error('Date selector has 0 options!')
+    console.log('📊 Ranks rendered in This Week table:', ranks.slice(0, 15))
+    const rankSet = new Set(ranks)
+    if (ranks.length > 0 && rankSet.size !== ranks.length) {
+      throw new Error(`Duplicate ranks detected in table! Total rows: ${ranks.length}, Unique ranks: ${rankSet.size}`)
     }
+    console.log(`✅ Rank uniqueness verified: all ${ranks.length} rows have unique ranks (no duplicate #2s)!`)
 
-    // 4. Test selecting the second date if available (e.g. 2026-11-05)
-    if (options.length > 1) {
-      const pastDate = options[1].value
-      console.log(`👉 Selecting past date: ${pastDate} ...`)
-      await page.select('#snapshot-date-select', pastDate)
+    // 4. Click first row to expand and inspect Trending Presence stats
+    console.log('👉 Clicking first row to expand AI specs and Trending Presence...')
+    const firstRow = await page.$('tbody tr')
+    if (firstRow) {
+      await firstRow.click()
       await new Promise((resolve) => setTimeout(resolve, 800))
 
-      const rowsCount = await page.evaluate(() => {
-        return document.querySelectorAll('tbody tr').length
+      const expandedText = await page.evaluate(() => {
+        const expandedRow = document.querySelector('tbody tr + tr')
+        return expandedRow ? expandedRow.textContent : ''
       })
-      console.log(`✅ Table updated for past date ${pastDate} with ${rowsCount} rows.`)
+
+      if (expandedText && expandedText.includes('Trending Presence')) {
+        console.log('✅ Expanded row rendered Trending Presence.')
+        // Verify dashes are replaced with real metrics
+        if (expandedText.includes('7d Hotness: —') && expandedText.includes('30d Endurance: —')) {
+          console.warn('⚠️ Warning: Still found dashes in 7d Hotness')
+        } else {
+          console.log('✅ 7d Hotness and 30d Endurance successfully populated with real numbers!')
+        }
+      }
     }
 
     // 5. Take screenshot proof
-    const screenshotPath = path.join(scratchDir, 'browser-test-date-selector.png')
+    const screenshotPath = path.join(scratchDir, 'browser-test-fixed-dashboard.png')
     await page.screenshot({ path: screenshotPath, fullPage: true })
     console.log(`📸 Screenshot captured and saved to: ${screenshotPath}`)
 

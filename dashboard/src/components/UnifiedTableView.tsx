@@ -13,6 +13,7 @@ import {
   Code2,
   RotateCcw,
   Calendar,
+  Clock,
 } from 'lucide-react'
 import type { UnifiedRepoItem, TimeFilter, SortOption, TrendingSnapshotItem } from '../types'
 import {
@@ -20,16 +21,23 @@ import {
   resolveEffectiveSnapshotDate,
   resolveHistoricalSnapshotItems,
   calculateCoordinatedTimePeriodCounts,
+  formatLastUpdated,
 } from '../lib/timeTravelResolver'
 import { HistoricalDateSelector } from './HistoricalDateSelector'
 
 interface UnifiedTableViewProps {
   repos: UnifiedRepoItem[]
   snapshots?: TrendingSnapshotItem[]
+  lastUpdatedIso?: string
   isLoading: boolean
 }
 
-export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, snapshots = [], isLoading }) => {
+export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
+  repos,
+  snapshots = [],
+  lastUpdatedIso,
+  isLoading,
+}) => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
@@ -56,6 +64,26 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, snaps
   const baseRepos = useMemo(
     () => resolveHistoricalSnapshotItems(repos, snapshots, timeFilter, effectiveDate),
     [repos, snapshots, timeFilter, effectiveDate]
+  )
+
+  // 4. Derive effective last updated timestamp and formatted string
+  const effectiveLastUpdated = useMemo(() => {
+    if (lastUpdatedIso) return lastUpdatedIso
+    if (snapshots && snapshots.length > 0) {
+      let maxTime = ''
+      for (const s of snapshots) {
+        if (s.recorded_at && (!maxTime || s.recorded_at > maxTime)) {
+          maxTime = s.recorded_at
+        }
+      }
+      return maxTime || null
+    }
+    return null
+  }, [lastUpdatedIso, snapshots])
+
+  const lastUpdatedFormatted = useMemo(
+    () => formatLastUpdated(effectiveLastUpdated),
+    [effectiveLastUpdated]
   )
 
   // Master list of all distinct categories & languages in dataset
@@ -204,33 +232,37 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, snaps
       } else if (sortBy === 'stars') {
         valA = a.stars_count
         valB = b.stars_count
-        return sortAsc ? valB - valA : valA - valB
+        if (valA !== valB) return sortAsc ? valB - valA : valA - valB
       } else if (sortBy === 'readiness') {
         valA = a.ai_specs?.production_score || 0
         valB = b.ai_specs?.production_score || 0
-        return sortAsc ? valB - valA : valA - valB
+        if (valA !== valB) return sortAsc ? valB - valA : valA - valB
       } else if (sortBy === 'power_score') {
         valA = a.trending_power_score
         valB = b.trending_power_score
-        return sortAsc ? valB - valA : valA - valB
+        if (valA !== valB) return sortAsc ? valB - valA : valA - valB
       } else if (sortBy === 'growth_velocity') {
         valA = a.stars_today || 0
         valB = b.stars_today || 0
-        return sortAsc ? valB - valA : valA - valB
+        if (valA !== valB) return sortAsc ? valB - valA : valA - valB
       } else if (sortBy === 'peak') {
         valA = a.peak_rank
         valB = b.peak_rank
-        return sortAsc ? valA - valB : valB - valA
+        if (valA !== valB) return sortAsc ? valA - valB : valB - valA
       } else if (sortBy === 'trending_days' || sortBy === 'days_7d') {
         valA = a.days_7d !== undefined ? a.days_7d : (a.trending_days || 1)
         valB = b.days_7d !== undefined ? b.days_7d : (b.trending_days || 1)
-        return sortAsc ? valB - valA : valA - valB
+        if (valA !== valB) return sortAsc ? valB - valA : valA - valB
       } else if (sortBy === 'current_streak') {
         valA = a.current_streak || 0
         valB = b.current_streak || 0
-        return sortAsc ? valB - valA : valA - valB
+        if (valA !== valB) return sortAsc ? valB - valA : valA - valB
       }
-      return 0
+
+      // Tie-breaker: Deterministic rank ordering
+      const rankA = (timeFilter !== 'all' && a.snapshot_rank) ? a.snapshot_rank : a.all_time_rank
+      const rankB = (timeFilter !== 'all' && b.snapshot_rank) ? b.snapshot_rank : b.all_time_rank
+      return rankA - rankB
     })
 
     return result
@@ -348,6 +380,21 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({ repos, snaps
               totalTrackedCount={repos.length}
               onDateChange={setSelectedDate}
             />
+
+            {/* Last Updated Timestamp Indicator (Crawler Sync Status) */}
+            {effectiveLastUpdated && (
+              <div
+                data-testid="last-updated-pill"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-950 border border-neutral-800 text-xs text-neutral-400 shrink-0 select-none shadow-sm hover:border-neutral-700 transition-colors"
+                title={lastUpdatedFormatted.full}
+              >
+                <Clock className="w-3.5 h-3.5 text-primary-400 shrink-0" />
+                <span className="text-neutral-400 font-medium">Last updated:</span>
+                <strong className="text-neutral-200 font-mono font-semibold">
+                  {lastUpdatedFormatted.display}
+                </strong>
+              </div>
+            )}
           </div>
 
           {/* Search Bar (Auto-resolves pasted GitHub URLs) */}
