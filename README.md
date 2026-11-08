@@ -30,6 +30,9 @@ An autonomous, zero-storage GitHub Trending intelligence system that captures Da
 
 4. **💻 Modern React 19 + Tailwind Dashboard:**
    - Real-time search, multi-column sorting, language filtering, live snapshot views, and direct repository links.
+   - **Personal Favorites System:** 1-click favorite toggle on row hover, localStorage persistence, dedicated Category Favorites filter pill (`❤️ Favorites`), and top-bar quick filters.
+   - **Framed AI Specs Drawer:** Visually framed inset cards with start header ribbons and clear end-of-section footer collapse bars.
+   - **True Golden Trend Power Alignment:** Dynamically weights breakout velocity (sub-linear power scale $(V/2500)^{0.6}$), active streaks, and rolling hotness so viral repos immediately rise to the top.
    - Deployed on **Vercel** with sub-second page loads: [https://github-trend-tracker-v2.vercel.app](https://github-trend-tracker-v2.vercel.app)
 
 ---

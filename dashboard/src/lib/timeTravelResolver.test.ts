@@ -6,6 +6,7 @@ import {
   calculateCoordinatedTimePeriodCounts,
   formatLastUpdated,
   calculateRepoSnapshotMetrics,
+  calculateGoldenTrendPowerScore,
 } from './timeTravelResolver'
 import type { UnifiedRepoItem, TrendingSnapshotItem } from '../types'
 
@@ -258,6 +259,24 @@ describe('Time Travel Snapshot Resolver (Unit & Integration Tests)', () => {
         '2026-11-05'
       )
       expect(counts.daily).toBe(1) // only repo-3 on 2026-11-05
+    })
+  })
+
+  describe('calculateGoldenTrendPowerScore', () => {
+    it('properly values high viral velocity over pure age', () => {
+      // Viral repo (+2,173 stars/day, 2d presence, 16.8k stars)
+      const viralScore = calculateGoldenTrendPowerScore(2173, 2, 2, 2, 16833)
+      // Slow steady repo (+30 stars/day, 7d presence, 30d endurance, 7d streak, 5k stars)
+      const slowScore = calculateGoldenTrendPowerScore(30, 7, 30, 7, 5000)
+
+      expect(viralScore).toBeGreaterThan(130)
+      expect(viralScore).toBeGreaterThan(slowScore)
+    })
+
+    it('returns bounded non-negative score for zero velocity', () => {
+      const zeroVelScore = calculateGoldenTrendPowerScore(0, 0, 0, 0, 100)
+      expect(zeroVelScore).toBeGreaterThan(0) // Has small credibility base
+      expect(zeroVelScore).toBeLessThan(30)
     })
   })
 })

@@ -9,6 +9,9 @@ import {
   Copy,
   Check,
   TrendingUp,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
   Code2,
   RotateCcw,
   Calendar,
@@ -150,7 +153,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
 
   // Coordinated Category Counts
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: 0 }
+    const counts: Record<string, number> = { all: 0, favorites: 0 }
     allCategories.forEach((c) => {
       counts[c] = 0
     })
@@ -161,12 +164,14 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
     })
 
     counts.all = matching.length
+    counts.favorites = matching.filter((r) => effectiveFavoriteIds.has(r.repo_id)).length
+
     matching.forEach((r) => {
       const cat = r.ai_specs?.architecture_type || 'Full-Stack App'
       counts[cat] = (counts[cat] || 0) + 1
     })
     return counts
-  }, [baseRepos, languageFilter, allCategories])
+  }, [baseRepos, languageFilter, allCategories, effectiveFavoriteIds])
 
   // Coordinated Language Counts
   const languageCounts = useMemo(() => {
@@ -176,7 +181,11 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
     })
 
     const matching = baseRepos.filter((r) => {
-      if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) return false
+      if (categoryFilter === 'favorites') {
+        if (!effectiveFavoriteIds.has(r.repo_id)) return false
+      } else if (categoryFilter !== 'all' && (r.ai_specs?.architecture_type || 'Full-Stack App') !== categoryFilter) {
+        return false
+      }
       return true
     })
 
@@ -187,12 +196,16 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
       }
     })
     return counts
-  }, [baseRepos, categoryFilter, allLanguages])
+  }, [baseRepos, categoryFilter, allLanguages, effectiveFavoriteIds])
 
   // Smart filter click handlers: toggle off if already active, or auto-coordinate
   const handleCategoryClick = (cat: string) => {
     if (categoryFilter === cat) {
       setCategoryFilter('all')
+      return
+    }
+    if (cat === 'favorites') {
+      setCategoryFilter('favorites')
       return
     }
     if (cat !== 'all' && languageFilter !== 'all') {
@@ -236,7 +249,9 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
     cleanQuery = cleanQuery.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\/$/, '')
 
     let result = baseRepos.filter((r) => {
-      if (categoryFilter !== 'all') {
+      if (categoryFilter === 'favorites') {
+        if (!effectiveFavoriteIds.has(r.repo_id)) return false
+      } else if (categoryFilter !== 'all') {
         const cat = r.ai_specs?.architecture_type || 'Full-Stack App'
         if (cat !== categoryFilter) return false
       }
@@ -321,27 +336,27 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
     setExpandedRepoId(expandedRepoId === id ? null : id)
   }
 
-  // Nuanced score-wise color and shade for Power Score (Scaled for 0-350 range)
+  // Nuanced score-wise color and shade for Power Score (Scaled for Golden Score ~20-160 range)
   const getPowerScoreStyle = (score: number) => {
-    if (score >= 180) {
+    if (score >= 130) {
       return {
-        bar: 'bg-emerald-400 shadow-sm shadow-emerald-500/20',
+        bar: 'bg-emerald-400 shadow-sm shadow-emerald-500/30',
         text: 'text-emerald-400 font-bold',
       }
     }
-    if (score >= 100) {
+    if (score >= 95) {
       return {
         bar: 'bg-emerald-500/80',
         text: 'text-emerald-400 font-semibold',
       }
     }
-    if (score >= 60) {
+    if (score >= 65) {
       return {
         bar: 'bg-amber-400/90',
         text: 'text-amber-400 font-semibold',
       }
     }
-    if (score >= 30) {
+    if (score >= 35) {
       return {
         bar: 'bg-amber-500/80',
         text: 'text-amber-400/90 font-medium',
@@ -475,7 +490,47 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
             Category:
           </span>
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-            {allCategories.map((cat) => {
+            {/* All Category Pill */}
+            <button
+              type="button"
+              onClick={() => handleCategoryClick('all')}
+              className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+                categoryFilter === 'all'
+                  ? 'bg-primary-500/20 text-primary-300 border border-primary-500/50 font-bold'
+                  : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
+              }`}
+            >
+              <span>All</span>
+              <span className="text-[10px] opacity-70 font-mono">({categoryCounts['all'] || 0})</span>
+            </button>
+
+            {/* Dedicated Favorites Category Pill (User Request: alada fav catagory banao) */}
+            <button
+              type="button"
+              data-testid="category-fav-pill"
+              onClick={() => handleCategoryClick('favorites')}
+              className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                categoryFilter === 'favorites'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/60 font-bold shadow-sm shadow-rose-500/20'
+                  : effectiveFavoriteIds.size === 0
+                  ? 'bg-neutral-950/40 text-neutral-600 border border-neutral-800/40 hover:text-neutral-400'
+                  : 'bg-neutral-950 text-neutral-300 hover:text-rose-300 hover:bg-neutral-800 border border-neutral-800'
+              }`}
+              title="Filter to show only your saved favorite repositories"
+            >
+              <Heart
+                className={`w-3 h-3 ${
+                  categoryFilter === 'favorites' || (categoryCounts['favorites'] || 0) > 0
+                    ? 'fill-rose-500 text-rose-500'
+                    : 'text-neutral-400'
+                }`}
+              />
+              <span>Favorites</span>
+              <span className="text-[10px] font-mono opacity-80">({categoryCounts['favorites'] || 0})</span>
+            </button>
+
+            {/* Architecture Category Pills */}
+            {allCategories.filter((c) => c !== 'all').map((cat) => {
               const count = categoryCounts[cat] || 0
               const isActive = categoryFilter === cat
               return (
@@ -490,7 +545,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                       : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
                   }`}
                 >
-                  <span>{cat === 'all' ? 'All' : cat}</span>
+                  <span>{cat}</span>
                   <span className="text-[10px] opacity-70 font-mono">({count})</span>
                 </button>
               )
@@ -646,7 +701,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                 </div>
               </td>
             </tr>
-          ) : effectiveTimeFilter === 'favorites' && filteredRepos.length === 0 && effectiveFavoriteIds.size === 0 ? (
+          ) : ((effectiveTimeFilter === 'favorites' || categoryFilter === 'favorites') && filteredRepos.length === 0) ? (
             <tr>
               <td colSpan={12} className="px-4 py-16 text-center text-neutral-400">
                 <div className="flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
@@ -654,13 +709,16 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                     <Heart className="w-6 h-6" />
                   </div>
                   <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-neutral-200">No favorite repositories yet</h3>
+                    <h3 className="text-sm font-bold text-neutral-200">No favorite repositories</h3>
                     <p className="text-xs text-neutral-400">
                       Hover over any repository row and click the heart icon to add it to your personal favorites list.
                     </p>
                   </div>
                   <button
-                    onClick={() => handleTimeFilterChange('all')}
+                    onClick={() => {
+                      if (effectiveTimeFilter === 'favorites') handleTimeFilterChange('all')
+                      if (categoryFilter === 'favorites') setCategoryFilter('all')
+                    }}
                     className="mt-2 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold border border-neutral-700 transition-colors"
                   >
                     Browse All Repositories
@@ -696,11 +754,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                 <React.Fragment key={row.repo_id}>
                   {/* Main Row: Click anywhere for AI specs */}
                   <tr
-                    className={`hover:bg-neutral-800/50 transition-colors cursor-pointer group ${
-                      isExpanded ? 'bg-neutral-800/40' : ''
+                    className={`transition-colors cursor-pointer group select-none ${
+                      isExpanded
+                        ? 'bg-neutral-800/90 border-l-4 border-l-primary-500 shadow-lg ring-1 ring-primary-500/30'
+                        : 'hover:bg-neutral-800/50'
                     }`}
                     onClick={() => toggleExpand(row.repo_id)}
-                    title="Click row to view AI intelligence specs"
+                    title={isExpanded ? 'Click to collapse AI specs' : 'Click to expand AI intelligence specs'}
                   >
                     {/* 1. Rank */}
                     <td className="px-3 py-2.5 font-mono font-bold whitespace-nowrap">
@@ -714,9 +774,20 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
 
                     {/* 2. Repository Name ONLY */}
                     <td className="px-3 py-2.5 max-w-xs sm:max-w-sm">
-                      <span className="font-bold text-neutral-100 hover:text-primary-400 transition-colors text-xs sm:text-sm">
-                        {row.repo_name}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`font-bold transition-colors text-xs sm:text-sm ${
+                            isExpanded ? 'text-primary-300' : 'text-neutral-100 group-hover:text-primary-400'
+                          }`}
+                        >
+                          {row.repo_name}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-primary-400 shrink-0" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-neutral-600 group-hover:text-neutral-400 shrink-0 transition-transform" />
+                        )}
+                      </div>
                     </td>
 
                     {/* 3. Favorite Action Button (Appears on hover or if favorited) */}
@@ -769,7 +840,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${scoreStyle.bar}`}
                             style={{
-                              width: `${Math.min(100, Math.max(3, (row.trending_power_score / Math.min(350, maxObservedScore)) * 100))}%`,
+                              width: `${Math.min(100, Math.max(5, (row.trending_power_score / maxObservedScore) * 100))}%`,
                             }}
                           />
                         </div>
@@ -888,91 +959,139 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                     </td>
                   </tr>
 
-                  {/* Expanded Row: Key Value Proposition & Tech Stack */}
+                  {/* Expanded Row: Framed Inset Card with Clear Start and End Boundaries */}
                   {isExpanded && (
-                    <tr>
-                      <td colSpan={12} className="px-4 py-4 bg-neutral-900/40 border-y border-neutral-800/80">
-                        <div className="space-y-3 max-w-4xl">
-                          {/* Header Summary */}
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-neutral-100 text-sm">
-                              {row.repo_name}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full bg-primary-500/10 text-primary-400 border border-primary-500/20 text-[10px] font-mono">
-                              {row.ai_specs?.architecture_type || 'Full-Stack App'}
-                            </span>
-                            <span className="text-neutral-500 text-[11px]">
-                              License: <strong className="text-neutral-300">{row.ai_specs?.license_risk || 'Low (Standard OSS)'}</strong>
-                            </span>
-                          </div>
-
-                          {/* Value Proposition */}
-                          <div>
-                            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
-                              Value Proposition:
-                            </span>
-                            <p className="text-xs sm:text-sm text-neutral-200 leading-relaxed bg-neutral-900/80 p-3 rounded-xl border border-neutral-800">
-                              "{row.ai_specs?.key_value_proposition || row.description || 'No summary available.'}"
-                            </p>
-                          </div>
-
-                          {/* Tech Stack Pills */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                            <div>
-                              <span className="text-neutral-400 text-[11px] font-medium mr-2">Tech Stack:</span>
-                              <div className="inline-flex flex-wrap gap-1 mt-1 sm:mt-0">
-                                {(row.ai_specs?.tech_stack || [row.language || 'Open Source']).map((tech, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-300 border border-neutral-700 text-[10px]"
-                                  >
-                                    {tech}
-                                  </span>
-                                ))}
+                    <tr className="bg-neutral-950/80">
+                      <td colSpan={12} className="p-0 border-y border-primary-500/30">
+                        {/* Distinct Inset Framed Card */}
+                        <div className="mx-2 sm:mx-3 my-2.5 rounded-xl border-2 border-primary-500/40 bg-neutral-900/95 shadow-2xl overflow-hidden">
+                          {/* ─── Top Header Ribbon (Start of AI Specs) ─── */}
+                          <div className="flex items-center justify-between px-3.5 py-2.5 bg-gradient-to-r from-primary-950/70 via-neutral-900 to-neutral-900 border-b border-primary-500/30">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 rounded-md bg-primary-500/20 text-primary-400 border border-primary-500/30">
+                                <Sparkles className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-neutral-100">
+                                  AI Intelligence & Architecture Specs
+                                </span>
+                                <span className="text-primary-400 font-mono text-xs font-semibold">
+                                  · {row.repo_name}
+                                </span>
                               </div>
                             </div>
-                          </div>
-
-                          {/* Rolling Momentum & Streak Stats */}
-                          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                            <span className="text-neutral-400 text-[11px] font-medium mr-1">Trending Presence:</span>
-                            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono text-[11px] text-neutral-300">
-                              7d Hotness: <strong className="text-primary-400">{row.days_7d !== undefined ? `${row.days_7d}/7d` : '—'}</strong>
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono text-[11px] text-neutral-300">
-                              30d Endurance: <strong className="text-emerald-400">{row.days_30d !== undefined ? `${row.days_30d}/30d` : '—'}</strong>
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono text-[11px] text-neutral-300">
-                              Active Streak: <strong className="text-amber-400">{row.current_streak ? `${row.current_streak}d in a row` : '0d'}</strong>
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 font-mono text-[11px] text-neutral-300">
-                              Max 30d Streak: <strong className="text-purple-400">{row.max_streak_30d ? `${row.max_streak_30d}d` : '—'}</strong>
-                            </span>
-                          </div>
-
-                          {/* Quick Start Command */}
-                          {row.ai_specs?.quick_start_command && (
-                            <div className="flex items-center justify-between p-2 rounded-lg bg-neutral-900 border border-neutral-800 font-mono text-xs text-neutral-300">
-                              <div className="flex items-center gap-2 overflow-x-auto">
-                                <Terminal className="w-3.5 h-3.5 text-primary-400 shrink-0" />
-                                <span className="truncate">{row.ai_specs.quick_start_command}</span>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded-full bg-primary-500/10 text-primary-300 border border-primary-500/30 text-[10px] font-mono">
+                                {row.ai_specs?.architecture_type || 'Full-Stack App'}
+                              </span>
+                              <span className="text-neutral-400 text-[11px] hidden sm:inline">
+                                License: <strong className="text-neutral-200">{row.ai_specs?.license_risk || 'Low (Standard OSS)'}</strong>
+                              </span>
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleCopy(row.ai_specs!.quick_start_command!, row.repo_id)
+                                  toggleExpand(row.repo_id)
                                 }}
-                                className="ml-2 p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-neutral-100 transition-colors shrink-0"
-                                title="Copy Command"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs font-medium border border-neutral-700 transition-colors cursor-pointer"
+                                title="Collapse AI specs"
                               >
-                                {copiedId === row.repo_id ? (
-                                  <Check className="w-3.5 h-3.5 text-success-400" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
+                                <span>Collapse</span>
+                                <ChevronUp className="w-3 h-3 text-primary-400" />
                               </button>
                             </div>
-                          )}
+                          </div>
+
+                          {/* ─── Body Content ─── */}
+                          <div className="p-3.5 sm:p-4 space-y-3">
+                            {/* Value Proposition */}
+                            <div>
+                              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
+                                Value Proposition:
+                              </span>
+                              <p className="text-xs sm:text-sm text-neutral-200 leading-relaxed bg-neutral-950/80 p-3 rounded-lg border border-neutral-800 shadow-inner">
+                                "{row.ai_specs?.key_value_proposition || row.description || 'No summary available.'}"
+                              </p>
+                            </div>
+
+                            {/* Tech Stack Pills */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                              <div>
+                                <span className="text-neutral-400 text-[11px] font-medium mr-2">Tech Stack:</span>
+                                <div className="inline-flex flex-wrap gap-1 mt-1 sm:mt-0">
+                                  {(row.ai_specs?.tech_stack || [row.language || 'Open Source']).map((tech, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-300 border border-neutral-700 text-[10px]"
+                                    >
+                                      {tech}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Rolling Momentum & Streak Stats */}
+                            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                              <span className="text-neutral-400 text-[11px] font-medium mr-1">Trending Presence:</span>
+                              <span className="px-2 py-0.5 rounded bg-neutral-950 border border-neutral-800 font-mono text-[11px] text-neutral-300">
+                                7d Hotness: <strong className="text-primary-400">{row.days_7d !== undefined ? `${row.days_7d}/7d` : '—'}</strong>
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-neutral-950 border border-neutral-800 font-mono text-[11px] text-neutral-300">
+                                30d Endurance: <strong className="text-emerald-400">{row.days_30d !== undefined ? `${row.days_30d}/30d` : '—'}</strong>
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-neutral-950 border border-neutral-800 font-mono text-[11px] text-neutral-300">
+                                Active Streak: <strong className="text-amber-400">{row.current_streak ? `${row.current_streak}d in a row` : '0d'}</strong>
+                              </span>
+                              <span className="px-2 py-0.5 rounded bg-neutral-950 border border-neutral-800 font-mono text-[11px] text-neutral-300">
+                                Max 30d Streak: <strong className="text-purple-400">{row.max_streak_30d ? `${row.max_streak_30d}d` : '—'}</strong>
+                              </span>
+                            </div>
+
+                            {/* Quick Start Command */}
+                            {row.ai_specs?.quick_start_command && (
+                              <div className="flex items-center justify-between p-2 rounded-lg bg-neutral-950 border border-neutral-800 font-mono text-xs text-neutral-300">
+                                <div className="flex items-center gap-2 overflow-x-auto">
+                                  <Terminal className="w-3.5 h-3.5 text-primary-400 shrink-0" />
+                                  <span className="truncate">{row.ai_specs.quick_start_command}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleCopy(row.ai_specs!.quick_start_command!, row.repo_id)
+                                  }}
+                                  className="ml-2 p-1.5 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-neutral-100 transition-colors shrink-0"
+                                  title="Copy Command"
+                                >
+                                  {copiedId === row.repo_id ? (
+                                    <Check className="w-3.5 h-3.5 text-success-400" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ─── Bottom Footer Ribbon (End of AI Specs) ─── */}
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleExpand(row.repo_id)
+                            }}
+                            className="flex items-center justify-between px-4 py-2 bg-neutral-950 border-t border-primary-500/20 text-[11px] text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/80 cursor-pointer transition-colors select-none"
+                            title="Click to collapse AI specs section"
+                          >
+                            <div className="flex items-center gap-2 font-mono">
+                              <span className="w-2 h-2 rounded-full bg-primary-400 animate-pulse" />
+                              <span className="font-semibold text-neutral-300">End of AI specs for {row.repo_name}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-primary-400 font-medium">
+                              <span>Click row or here to collapse</span>
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
                         </div>
                       </td>
                     </tr>

@@ -12,6 +12,33 @@ export interface RepoSnapshotMetrics {
 }
 
 /**
+ * Calculates the Golden Trend Power Score [0 - 180+ pts]:
+ * 1. Normalized Velocity Momentum (0 - 120 pts) powered sub-linearly: (stars / 2500)^0.6
+ * 2. 7-Day Hotness (0 - 25 pts)
+ * 3. 30-Day Endurance (0 - 15 pts)
+ * 4. Active Streak Bonus (0 - 15 pts)
+ * 5. Credibility Base (log scale of stars, 0 - 15 pts)
+ */
+export function calculateGoldenTrendPowerScore(
+  starsToday: number,
+  days7d: number,
+  days30d: number,
+  currentStreak: number,
+  totalStars: number
+): number {
+  const safeVelocity = Math.max(0, starsToday)
+  const normVelocity = Math.pow(Math.min(2500.0, safeVelocity) / 2500.0, 0.6)
+  const velocityScore = 120.0 * normVelocity
+  const hotnessScore = 25.0 * (Math.min(7, Math.max(0, days7d)) / 7.0)
+  const enduranceScore = 15.0 * (Math.min(30, Math.max(0, days30d)) / 30.0)
+  const streakScore = 15.0 * (Math.min(7, Math.max(0, currentStreak)) / 7.0)
+  const credibilityScore = 3.0 * Math.log10(Math.max(1, totalStars) + 1)
+
+  const rawScore = velocityScore + hotnessScore + enduranceScore + streakScore + credibilityScore
+  return Math.round(rawScore * 10) / 10
+}
+
+/**
  * Formats a snapshot timestamp into a human-readable "Last updated" display string
  * and full UTC/local string for tooltips.
  */
@@ -327,12 +354,22 @@ export function resolveHistoricalSnapshotItems(
     const snapshot = sortedSnapshots[idx]
     const repoMetadata = repositoryCatalogLookup.get(snapshot.repo_id)
     if (repoMetadata) {
+      const snapVelocity = snapshot.stars_today !== undefined ? snapshot.stars_today : (repoMetadata.stars_today || 0)
+      const computedPower = calculateGoldenTrendPowerScore(
+        snapVelocity,
+        repoMetadata.days_7d ?? 0,
+        repoMetadata.days_30d ?? 1,
+        repoMetadata.current_streak ?? 0,
+        repoMetadata.stars_count || 0
+      )
+
       resolvedSnapshotItems.push({
         ...repoMetadata,
         snapshot_rank: idx + 1, // Guaranteed unique rank: #1, #2, #3, ..., #N
         snapshot_date: targetSnapshotDate,
-        stars_today: snapshot.stars_today,
+        stars_today: snapVelocity,
         latest_period: snapshot.period,
+        trending_power_score: computedPower,
       })
     }
   }

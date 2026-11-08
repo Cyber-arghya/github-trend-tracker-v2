@@ -136,12 +136,48 @@ async function runBrowserVerification() {
     }
     console.log('✅ Favorites persistence verified across page refresh!')
 
-    // 6. Take screenshot proof of favorites list
+    // 6. Verify dedicated Category Favorites Pill (User request: alada fav catagory banao)
+    const categoryFavPill = await page.waitForSelector('[data-testid="category-fav-pill"]')
+    if (!categoryFavPill) {
+      throw new Error('Category Favorites pill ([data-testid="category-fav-pill"]) not found!')
+    }
+    const categoryFavText = await page.evaluate((el) => el.textContent, categoryFavPill)
+    console.log('✅ Category Favorites Pill Verified in Category Row:', categoryFavText)
+    if (!categoryFavText.includes('Favorites') || !categoryFavText.includes('1')) {
+      throw new Error(`Category favorites pill does not show 1 count: "${categoryFavText}"`)
+    }
+
+    // 7. Verify Row Click Expansion & Inset Frame with Start & End Boundaries
+    console.log('👉 Clicking first repository row to expand AI specs drawer...')
+    const targetRow = await page.$('tbody tr:first-child')
+    await targetRow.click()
+    await new Promise((resolve) => setTimeout(resolve, 600))
+
+    // Check Start Ribbon
+    const startRibbon = await page.evaluate(() => {
+      const el = document.querySelector('tbody tr td div div')
+      return document.body.innerText.includes('AI Intelligence & Architecture Specs')
+    })
+    if (!startRibbon) {
+      throw new Error('Start ribbon "AI Intelligence & Architecture Specs" not found!')
+    }
+    console.log('✅ Top Header Ribbon (Start of AI Specs) verified!')
+
+    // Check End Ribbon
+    const endRibbon = await page.evaluate(() => {
+      return document.body.innerText.includes('End of AI specs for')
+    })
+    if (!endRibbon) {
+      throw new Error('Bottom footer ribbon "End of AI specs for" not found!')
+    }
+    console.log('✅ Bottom Footer Ribbon (End of AI Specs) verified!')
+
+    // 8. Take screenshot proof of expanded view with framed container
     const screenshotPath = path.join(scratchDir, 'browser-test-favorites-view.png')
     await page.screenshot({ path: screenshotPath, fullPage: true })
     console.log(`📸 Screenshot captured and saved to: ${screenshotPath}`)
 
-    console.log('🎉 ALL FAVORITE SYSTEM ASSERTIONS PASSED WITH ZERO ERRORS!')
+    console.log('🎉 ALL SUITE ASSERTIONS PASSED WITH ZERO ERRORS!')
     process.exit(0)
   } finally {
     if (browser) await browser.close()

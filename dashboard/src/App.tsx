@@ -3,7 +3,7 @@ import { Header } from './components/Header'
 import { UnifiedTableView } from './components/UnifiedTableView'
 import { supabase } from './lib/supabase'
 import type { UnifiedRepoItem, TrendingSnapshotItem, TimeFilter } from './types'
-import { calculateRepoSnapshotMetrics } from './lib/timeTravelResolver'
+import { calculateRepoSnapshotMetrics, calculateGoldenTrendPowerScore } from './lib/timeTravelResolver'
 
 const FAVORITES_STORAGE_KEY = 'github_trend_favorites'
 
@@ -95,18 +95,41 @@ export default function App() {
       if (!mvError && mvData && mvData.length > 0) {
         const unified: UnifiedRepoItem[] = mvData.map((row) => {
           const metrics = snapshotMetricsMap.get(row.repo_id)
+          const starsToday = metrics ? metrics.latest_velocity : (row.stars_today || 0)
+          const days7d = metrics?.days_7d ?? (row.days_7d ?? 0)
+          const days30d = metrics?.days_30d ?? (row.days_30d ?? 1)
+          const currentStreak = metrics?.current_streak ?? (row.current_streak ?? 0)
+          const totalStars = row.stars_count || 0
+
+          // True Golden Trend Power Score: Velocity + Hotness + Endurance + Streak + Stars Credibility
+          const computedPower = calculateGoldenTrendPowerScore(
+            starsToday,
+            days7d,
+            days30d,
+            currentStreak,
+            totalStars
+          )
+
           return {
             ...row,
-            stars_today: metrics ? metrics.latest_velocity : (row.stars_today || 0),
+            stars_today: starsToday,
             latest_period: metrics ? metrics.latest_period : (row.latest_period || 'daily'),
             trending_days: metrics ? metrics.trending_days : (row.trending_days || 1),
-            days_7d: metrics ? metrics.days_7d : (row.days_7d ?? 0),
-            days_30d: metrics ? metrics.days_30d : (row.days_30d ?? 1),
-            current_streak: metrics ? metrics.current_streak : (row.current_streak ?? 0),
+            days_7d: days7d,
+            days_30d: days30d,
+            current_streak: currentStreak,
             max_streak_30d: metrics ? metrics.max_streak_30d : (row.max_streak_30d ?? 1),
             peak_rank: metrics ? metrics.peak_rank : (row.peak_rank ?? 99),
+            trending_power_score: computedPower,
           }
         })
+
+        // Re-order by true Golden Trend Power for All-Time ranking
+        unified.sort((a, b) => b.trending_power_score - a.trending_power_score)
+        unified.forEach((r, idx) => {
+          r.all_time_rank = idx + 1
+        })
+
         setRepos(unified)
       } else {
         // Fallback: Query 'repositories' directly
@@ -118,6 +141,20 @@ export default function App() {
         if (fallbackRepos) {
           const unified: UnifiedRepoItem[] = fallbackRepos.map((r, idx) => {
             const metrics = snapshotMetricsMap.get(r.id)
+            const starsToday = metrics ? metrics.latest_velocity : 0
+            const days7d = metrics ? metrics.days_7d : 0
+            const days30d = metrics ? metrics.days_30d : 1
+            const currentStreak = metrics ? metrics.current_streak : 0
+            const totalStars = r.stars_count || 0
+
+            const computedPower = calculateGoldenTrendPowerScore(
+              starsToday,
+              days7d,
+              days30d,
+              currentStreak,
+              totalStars
+            )
+
             return {
               repo_id: r.id,
               repo_name: r.repo_name,
@@ -125,7 +162,7 @@ export default function App() {
               name: r.name,
               description: r.description,
               language: r.language,
-              stars_count: r.stars_count,
+              stars_count: totalStars,
               forks_count: r.forks_count,
               ai_specs: r.ai_specs,
               first_seen_at: r.first_seen_at,
@@ -136,16 +173,22 @@ export default function App() {
               weekly_appearances: 0,
               monthly_appearances: 0,
               trending_days: metrics ? metrics.trending_days : 1,
-              days_7d: metrics ? metrics.days_7d : 0,
-              days_30d: metrics ? metrics.days_30d : 1,
-              current_streak: metrics ? metrics.current_streak : 0,
+              days_7d: days7d,
+              days_30d: days30d,
+              current_streak: currentStreak,
               max_streak_30d: metrics ? metrics.max_streak_30d : 1,
-              trending_power_score: r.trending_power_score || 0,
+              trending_power_score: computedPower,
               all_time_rank: idx + 1,
-              stars_today: metrics ? metrics.latest_velocity : 0,
+              stars_today: starsToday,
               latest_period: metrics ? metrics.latest_period : 'daily',
             }
           })
+
+          unified.sort((a, b) => b.trending_power_score - a.trending_power_score)
+          unified.forEach((r, idx) => {
+            r.all_time_rank = idx + 1
+          })
+
           setRepos(unified)
         }
       }
