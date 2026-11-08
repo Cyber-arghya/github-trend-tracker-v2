@@ -2,14 +2,56 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Header } from './components/Header'
 import { UnifiedTableView } from './components/UnifiedTableView'
 import { supabase } from './lib/supabase'
-import type { UnifiedRepoItem, TrendingSnapshotItem } from './types'
+import type { UnifiedRepoItem, TrendingSnapshotItem, TimeFilter } from './types'
 import { calculateRepoSnapshotMetrics } from './lib/timeTravelResolver'
+
+const FAVORITES_STORAGE_KEY = 'github_trend_favorites'
+
+function loadFavoritesFromStorage(): Set<string> {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(FAVORITES_STORAGE_KEY) : null
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return new Set(parsed)
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load favorites from localStorage:', e)
+  }
+  return new Set()
+}
+
+function saveFavoritesToStorage(favs: Set<string>): void {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(favs)))
+    }
+  } catch (e) {
+    console.error('Failed to save favorites to localStorage:', e)
+  }
+}
 
 export default function App() {
   const [repos, setRepos] = useState<UnifiedRepoItem[]>([])
   const [snapshots, setSnapshots] = useState<TrendingSnapshotItem[]>([])
   const [lastUpdatedIso, setLastUpdatedIso] = useState<string>('')
+  const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilter>('all')
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => loadFavoritesFromStorage())
   const [isLoading, setIsLoading] = useState<boolean>(true)
+
+  const handleToggleFavorite = useCallback((repoId: string) => {
+    setFavoriteIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(repoId)) {
+        next.delete(repoId)
+      } else {
+        next.add(repoId)
+      }
+      saveFavoritesToStorage(next)
+      return next
+    })
+  }, [])
 
   const fetchData = useCallback(async () => {
     setIsLoading(true)
@@ -137,6 +179,8 @@ export default function App() {
         breakoutCount={breakoutCount}
         multiDayCount={multiDayCount}
         activeStreaksCount={activeStreaksCount}
+        favoritesCount={favoriteIds.size}
+        onShowFavorites={() => setActiveTimeFilter('favorites')}
         isLoading={isLoading}
         onRefresh={fetchData}
       />
@@ -146,6 +190,10 @@ export default function App() {
           repos={repos}
           snapshots={snapshots}
           lastUpdatedIso={lastUpdatedIso}
+          timeFilter={activeTimeFilter}
+          onTimeFilterChange={setActiveTimeFilter}
+          favoriteIds={favoriteIds}
+          onToggleFavorite={handleToggleFavorite}
           isLoading={isLoading}
         />
       </main>

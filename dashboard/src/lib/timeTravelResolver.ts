@@ -244,7 +244,7 @@ export function resolveEffectiveSnapshotDate(
 
 /**
  * Resolves repository items to display for the active period and snapshot date.
- * - For 'all': returns the full all-time repository catalog.
+ * - For 'all' or 'favorites': returns the full all-time repository catalog.
  * - For 'daily', 'weekly', 'monthly': extracts snapshots for target date, deduplicates
  *   by repo_id keeping best rank, breaks ties cleanly, and assigns unique sequential ranks (1..N).
  */
@@ -254,8 +254,8 @@ export function resolveHistoricalSnapshotItems(
   activePeriod: TimePeriodFilter,
   targetSnapshotDate: string
 ): UnifiedRepoItem[] {
-  // Defensive guard: All-Time mode directly uses full catalog
-  if (activePeriod === 'all') {
+  // Defensive guard: All-Time and Favorites modes directly use full catalog (filtered by caller if needed)
+  if (activePeriod === 'all' || activePeriod === 'favorites') {
     return allRepositories
   }
 
@@ -344,12 +344,14 @@ export function resolveHistoricalSnapshotItems(
  * Calculates coordinated counts for each period pill:
  * - 'all': Total distinct tracked repositories
  * - 'daily' / 'weekly' / 'monthly': Count of distinct repositories on target date
+ * - 'favorites': Total favorited repositories count
  */
 export function calculateCoordinatedTimePeriodCounts(
   allRepositories: UnifiedRepoItem[],
   allSnapshots: TrendingSnapshotItem[],
   activePeriod: TimePeriodFilter,
-  effectiveSnapshotDate: string
+  effectiveSnapshotDate: string,
+  favoritesCount: number = 0
 ): Record<TimePeriodFilter, number> {
   const totalTrackedCount = Array.isArray(allRepositories) ? allRepositories.length : 0
 
@@ -359,6 +361,7 @@ export function calculateCoordinatedTimePeriodCounts(
       daily: allRepositories.filter((r) => r.daily_appearances > 0).length,
       weekly: allRepositories.filter((r) => r.weekly_appearances > 0).length,
       monthly: allRepositories.filter((r) => r.monthly_appearances > 0).length,
+      favorites: favoritesCount,
     }
   }
 
@@ -388,5 +391,6 @@ export function calculateCoordinatedTimePeriodCounts(
     daily: getDistinctRepoCountForPeriod('daily'),
     weekly: getDistinctRepoCountForPeriod('weekly'),
     monthly: getDistinctRepoCountForPeriod('monthly'),
+    favorites: favoritesCount,
   }
 }

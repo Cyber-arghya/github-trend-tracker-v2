@@ -1,11 +1,13 @@
 import React from 'react'
-import { Flame, Database, RefreshCw, Calendar, Zap } from 'lucide-react'
+import { Flame, Database, RefreshCw, Calendar, Zap, Heart } from 'lucide-react'
 
 interface HeaderProps {
   totalTracked: number
   breakoutCount: number
   multiDayCount?: number
   activeStreaksCount?: number
+  favoritesCount?: number
+  onShowFavorites?: () => void
   isLoading: boolean
   onRefresh: () => void
 }
@@ -15,6 +17,8 @@ export const Header: React.FC<HeaderProps> = ({
   breakoutCount,
   multiDayCount = 0,
   activeStreaksCount = 0,
+  favoritesCount = 0,
+  onShowFavorites,
   isLoading,
   onRefresh,
 }) => {
@@ -56,6 +60,18 @@ export const Header: React.FC<HeaderProps> = ({
                 <Zap className="w-3.5 h-3.5 text-primary-400" />
                 <span>Active Streaks: <strong>{activeStreaksCount}</strong></span>
               </div>
+            )}
+
+            {favoritesCount > 0 && (
+              <button
+                type="button"
+                onClick={onShowFavorites}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 font-medium hover:bg-rose-500/20 transition-all hover:scale-105"
+                title="View your saved favorites"
+              >
+                <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
+                <span>Favorites: <strong>{favoritesCount}</strong></span>
+              </button>
             )}
 
             <button

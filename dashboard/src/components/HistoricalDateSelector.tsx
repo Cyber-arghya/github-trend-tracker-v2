@@ -1,5 +1,5 @@
 import React from 'react'
-import { Calendar } from 'lucide-react'
+import { Calendar, Heart } from 'lucide-react'
 import type { TimePeriodFilter } from '../types'
 
 export interface HistoricalDateSelectorProps {
@@ -27,6 +27,21 @@ export const HistoricalDateSelector: React.FC<HistoricalDateSelectorProps> = ({
         <Calendar className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
         <span className="text-[11px] font-mono text-neutral-400">
           All History ({totalTrackedCount} Repos)
+        </span>
+      </div>
+    )
+  }
+
+  if (timeFilter === 'favorites') {
+    return (
+      <div
+        data-testid="favorites-history-badge"
+        className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-neutral-950/60 rounded-lg border border-rose-500/30 shrink-0 text-xs text-neutral-500 select-none"
+        title="Viewing your starred favorite repositories"
+      >
+        <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 shrink-0" />
+        <span className="text-[11px] font-mono text-rose-300 font-semibold">
+          My Saved Favorites ({totalTrackedCount} Repos)
         </span>
       </div>
     )

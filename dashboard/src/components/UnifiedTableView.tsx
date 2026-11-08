@@ -9,11 +9,11 @@ import {
   Copy,
   Check,
   TrendingUp,
-  Sparkles,
   Code2,
   RotateCcw,
   Calendar,
   Clock,
+  Heart,
 } from 'lucide-react'
 import type { UnifiedRepoItem, TimeFilter, SortOption, TrendingSnapshotItem } from '../types'
 import {
@@ -29,6 +29,10 @@ interface UnifiedTableViewProps {
   repos: UnifiedRepoItem[]
   snapshots?: TrendingSnapshotItem[]
   lastUpdatedIso?: string
+  timeFilter?: TimeFilter
+  onTimeFilterChange?: (filter: TimeFilter) => void
+  favoriteIds?: Set<string>
+  onToggleFavorite?: (repoId: string) => void
   isLoading: boolean
 }
 
@@ -36,9 +40,37 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
   repos,
   snapshots = [],
   lastUpdatedIso,
+  timeFilter: controlledTimeFilter,
+  onTimeFilterChange,
+  favoriteIds: controlledFavoriteIds,
+  onToggleFavorite,
   isLoading,
 }) => {
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
+  const [internalTimeFilter, setInternalTimeFilter] = useState<TimeFilter>('all')
+  const effectiveTimeFilter = controlledTimeFilter !== undefined ? controlledTimeFilter : internalTimeFilter
+
+  const [localFavoriteIds, setLocalFavoriteIds] = useState<Set<string>>(() => new Set())
+  const effectiveFavoriteIds = controlledFavoriteIds !== undefined ? controlledFavoriteIds : localFavoriteIds
+
+  const handleTimeFilterChange = (filter: TimeFilter) => {
+    setInternalTimeFilter(filter)
+    onTimeFilterChange?.(filter)
+    setSelectedDate('')
+  }
+
+  const handleToggleFavorite = (repoId: string) => {
+    if (onToggleFavorite) {
+      onToggleFavorite(repoId)
+    } else {
+      setLocalFavoriteIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(repoId)) next.delete(repoId)
+        else next.add(repoId)
+        return next
+      })
+    }
+  }
+
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [languageFilter, setLanguageFilter] = useState<string>('all')
@@ -50,8 +82,8 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
 
   // 1. Extract available dates for active time period
   const availableDatesForPeriod = useMemo(
-    () => extractAvailableSnapshotDates(snapshots, timeFilter),
-    [snapshots, timeFilter]
+    () => extractAvailableSnapshotDates(snapshots, effectiveTimeFilter),
+    [snapshots, effectiveTimeFilter]
   )
 
   // 2. Resolve effective snapshot date
@@ -60,11 +92,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
     [selectedDate, availableDatesForPeriod]
   )
 
-  // 3. Resolve historical repository items
-  const baseRepos = useMemo(
-    () => resolveHistoricalSnapshotItems(repos, snapshots, timeFilter, effectiveDate),
-    [repos, snapshots, timeFilter, effectiveDate]
-  )
+  // 3. Resolve historical repository items (or filter by favorites)
+  const baseRepos = useMemo(() => {
+    if (effectiveTimeFilter === 'favorites') {
+      return repos.filter((r) => effectiveFavoriteIds.has(r.repo_id))
+    }
+    return resolveHistoricalSnapshotItems(repos, snapshots, effectiveTimeFilter, effectiveDate)
+  }, [repos, snapshots, effectiveTimeFilter, effectiveDate, effectiveFavoriteIds])
 
   // 4. Derive effective last updated timestamp and formatted string
   const effectiveLastUpdated = useMemo(() => {
@@ -110,11 +144,11 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
 
   // Coordinated Time Counts
   const timeCounts = useMemo(
-    () => calculateCoordinatedTimePeriodCounts(repos, snapshots, timeFilter, effectiveDate),
-    [repos, snapshots, timeFilter, effectiveDate]
+    () => calculateCoordinatedTimePeriodCounts(repos, snapshots, effectiveTimeFilter, effectiveDate, effectiveFavoriteIds.size),
+    [repos, snapshots, effectiveTimeFilter, effectiveDate, effectiveFavoriteIds.size]
   )
 
-  // 2. Coordinated Category Counts
+  // Coordinated Category Counts
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { all: 0 }
     allCategories.forEach((c) => {
@@ -134,7 +168,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
     return counts
   }, [baseRepos, languageFilter, allCategories])
 
-  // 3. Coordinated Language Counts
+  // Coordinated Language Counts
   const languageCounts = useMemo(() => {
     const counts: Record<string, number> = { all: 0 }
     allLanguages.forEach((l) => {
@@ -189,14 +223,14 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
   }
 
   const handleResetFilters = () => {
-    setTimeFilter('all')
+    handleTimeFilterChange('all')
     setSelectedDate('')
     setCategoryFilter('all')
     setLanguageFilter('all')
     setSearchQuery('')
   }
 
-  // 4. Filtering and Sorting
+  // Filtering and Sorting
   const filteredRepos = useMemo(() => {
     let cleanQuery = searchQuery.trim().toLowerCase()
     cleanQuery = cleanQuery.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\/$/, '')
@@ -226,8 +260,8 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
       let valB: number = 0
 
       if (sortBy === 'rank') {
-        valA = (timeFilter !== 'all' && a.snapshot_rank) ? a.snapshot_rank : a.all_time_rank
-        valB = (timeFilter !== 'all' && b.snapshot_rank) ? b.snapshot_rank : b.all_time_rank
+        valA = (effectiveTimeFilter !== 'all' && a.snapshot_rank) ? a.snapshot_rank : a.all_time_rank
+        valB = (effectiveTimeFilter !== 'all' && b.snapshot_rank) ? b.snapshot_rank : b.all_time_rank
         return sortAsc ? valA - valB : valB - valA
       } else if (sortBy === 'stars') {
         valA = a.stars_count
@@ -260,13 +294,13 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
       }
 
       // Tie-breaker: Deterministic rank ordering
-      const rankA = (timeFilter !== 'all' && a.snapshot_rank) ? a.snapshot_rank : a.all_time_rank
-      const rankB = (timeFilter !== 'all' && b.snapshot_rank) ? b.snapshot_rank : b.all_time_rank
+      const rankA = (effectiveTimeFilter !== 'all' && a.snapshot_rank) ? a.snapshot_rank : a.all_time_rank
+      const rankB = (effectiveTimeFilter !== 'all' && b.snapshot_rank) ? b.snapshot_rank : b.all_time_rank
       return rankA - rankB
     })
 
     return result
-  }, [baseRepos, timeFilter, categoryFilter, languageFilter, searchQuery, sortBy, sortAsc])
+  }, [baseRepos, effectiveTimeFilter, categoryFilter, languageFilter, searchQuery, sortBy, sortAsc])
 
   const toggleSort = (field: SortOption) => {
     if (sortBy === field) {
@@ -291,51 +325,46 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
   const getPowerScoreStyle = (score: number) => {
     if (score >= 180) {
       return {
+        bar: 'bg-emerald-400 shadow-sm shadow-emerald-500/20',
         text: 'text-emerald-400 font-bold',
-        bar: 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-[0_0_8px_rgba(52,211,153,0.35)]',
       }
     }
     if (score >= 100) {
       return {
-        text: 'text-teal-400 font-bold',
-        bar: 'bg-gradient-to-r from-teal-400 to-emerald-500 shadow-[0_0_6px_rgba(20,184,166,0.25)]',
+        bar: 'bg-emerald-500/80',
+        text: 'text-emerald-400 font-semibold',
       }
     }
-    if (score >= 50) {
+    if (score >= 60) {
       return {
+        bar: 'bg-amber-400/90',
         text: 'text-amber-400 font-semibold',
-        bar: 'bg-gradient-to-r from-yellow-400 to-amber-500 shadow-[0_0_6px_rgba(251,191,36,0.25)]',
       }
     }
-    if (score >= 25) {
+    if (score >= 30) {
       return {
-        text: 'text-orange-400 font-semibold',
-        bar: 'bg-gradient-to-r from-amber-500 to-orange-500',
+        bar: 'bg-amber-500/80',
+        text: 'text-amber-400/90 font-medium',
       }
     }
     return {
-      text: 'text-rose-400 font-bold',
-      bar: 'bg-gradient-to-r from-rose-500 to-red-600 shadow-[0_0_8px_rgba(244,63,94,0.35)]',
+      bar: 'bg-neutral-600',
+      text: 'text-neutral-400 font-normal',
     }
   }
 
-  // Readiness badge color helper
+  // Dynamic Readiness Score styling
   const getReadinessStyle = (score: number) => {
-    if (score >= 85) {
-      return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-    }
-    if (score >= 70) {
-      return 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-    }
-    return 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+    if (score >= 85) return 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+    if (score >= 70) return 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
+    return 'text-rose-400 bg-rose-500/10 border border-rose-500/20'
   }
 
   return (
-    /* Unified Card Container with ZERO GAP between Filter and Table */
     <div className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 shadow-md">
-      {/* ─── Filter Section (Directly Top Zone of Container, Zero Gap) ─── */}
+      {/* ─── Filter Section (Top Zone of Container) ─── */}
       <div className="bg-neutral-900/95 border-b border-neutral-800 p-2.5 sm:p-3 space-y-2 rounded-t-xl">
-        {/* Row 1: Time Filters + Date Selector + Search */}
+        {/* Row 1: Time Filters + Date Selector + Last Updated + Search */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
           <div className="flex items-center gap-2 overflow-x-auto">
             {/* Time Filter Pills */}
@@ -350,12 +379,9 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
               ).map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    setTimeFilter(item.id)
-                    setSelectedDate('')
-                  }}
+                  onClick={() => handleTimeFilterChange(item.id)}
                   className={`px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                    timeFilter === item.id
+                    effectiveTimeFilter === item.id
                       ? 'bg-primary-500 text-neutral-950 font-bold shadow-sm'
                       : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
                   }`}
@@ -363,21 +389,53 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                   <span>{item.label}</span>
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                      timeFilter === item.id ? 'bg-primary-600 text-neutral-950 font-bold' : 'bg-neutral-800 text-neutral-400'
+                      effectiveTimeFilter === item.id ? 'bg-primary-600 text-neutral-950 font-bold' : 'bg-neutral-800 text-neutral-400'
                     }`}
                   >
                     {timeCounts[item.id]}
                   </span>
                 </button>
               ))}
+
+              {/* Favorites Filter Pill */}
+              <button
+                data-testid="favorites-pill"
+                onClick={() => handleTimeFilterChange('favorites')}
+                className={`px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  effectiveTimeFilter === 'favorites'
+                    ? 'bg-rose-500 text-neutral-950 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-rose-300 hover:bg-neutral-800/60'
+                }`}
+                title="View your saved favorites list"
+              >
+                <Heart
+                  className={`w-3.5 h-3.5 ${
+                    effectiveTimeFilter === 'favorites'
+                      ? 'fill-neutral-950 text-neutral-950'
+                      : effectiveFavoriteIds.size > 0
+                      ? 'fill-rose-500 text-rose-500'
+                      : 'text-neutral-400'
+                  }`}
+                />
+                <span>Favorites</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    effectiveTimeFilter === 'favorites'
+                      ? 'bg-rose-600 text-neutral-950 font-bold'
+                      : 'bg-neutral-800 text-neutral-400'
+                  }`}
+                >
+                  {effectiveFavoriteIds.size}
+                </span>
+              </button>
             </div>
 
             {/* Historical Date Selector Dropdown (Time Travel) */}
             <HistoricalDateSelector
-              timeFilter={timeFilter}
+              timeFilter={effectiveTimeFilter}
               effectiveDate={effectiveDate}
               availableDates={availableDatesForPeriod}
-              totalTrackedCount={repos.length}
+              totalTrackedCount={effectiveTimeFilter === 'favorites' ? effectiveFavoriteIds.size : repos.length}
               onDateChange={setSelectedDate}
             />
 
@@ -426,7 +484,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                   onClick={() => handleCategoryClick(cat)}
                   className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
                     isActive
-                      ? 'bg-neutral-200 text-neutral-900 font-bold shadow-sm'
+                      ? 'bg-primary-500/20 text-primary-300 border border-primary-500/50 font-bold'
                       : count === 0
                       ? 'bg-neutral-950/40 text-neutral-600 border border-neutral-800/40 hover:text-neutral-400'
                       : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 border border-neutral-800'
@@ -471,7 +529,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
         </div>
       </div>
 
-      {/* ─── Table Section (Sticky Header in Exact Requested Column Order) ─── */}
+      {/* ─── Table Section (Sticky Header) ─── */}
       <table className="w-full text-left text-xs text-neutral-300">
         <thead className="bg-neutral-950 text-[11px] font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 shadow-sm">
           <tr>
@@ -489,6 +547,14 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
             {/* Repository */}
             <th className="sticky top-0 z-30 bg-neutral-950 px-3 py-2.5 min-w-[200px] border-b border-neutral-800">
               Repository
+            </th>
+
+            {/* Favorite Action Column Header */}
+            <th
+              className="sticky top-0 z-30 bg-neutral-950 px-2 py-2.5 w-10 text-center border-b border-neutral-800 select-none"
+              title="Favorite"
+            >
+              <Heart className="w-3.5 h-3.5 text-neutral-400 mx-auto" />
             </th>
 
             {/* 1st: Total Stars */}
@@ -573,17 +639,40 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
         <tbody className="divide-y divide-neutral-800/60">
           {isLoading && repos.length === 0 ? (
             <tr>
-              <td colSpan={11} className="px-4 py-16 text-center text-neutral-500">
+              <td colSpan={12} className="px-4 py-16 text-center text-neutral-500">
                 <div className="flex items-center justify-center gap-2">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500" />
                   <span>Loading trending repositories...</span>
                 </div>
               </td>
             </tr>
+          ) : effectiveTimeFilter === 'favorites' && filteredRepos.length === 0 && effectiveFavoriteIds.size === 0 ? (
+            <tr>
+              <td colSpan={12} className="px-4 py-16 text-center text-neutral-400">
+                <div className="flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
+                  <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                    <Heart className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-neutral-200">No favorite repositories yet</h3>
+                    <p className="text-xs text-neutral-400">
+                      Hover over any repository row and click the heart icon to add it to your personal favorites list.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleTimeFilterChange('all')}
+                    className="mt-2 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold border border-neutral-700 transition-colors"
+                  >
+                    Browse All Repositories
+                  </button>
+                </div>
+              </td>
+            </tr>
           ) : filteredRepos.length > 0 ? (
             filteredRepos.map((row) => {
-              const displayRank = (timeFilter !== 'all' && row.snapshot_rank) ? row.snapshot_rank : row.all_time_rank
+              const displayRank = (effectiveTimeFilter !== 'all' && row.snapshot_rank) ? row.snapshot_rank : row.all_time_rank
               const isExpanded = expandedRepoId === row.repo_id
+              const isFav = effectiveFavoriteIds.has(row.repo_id)
               const starsToday = row.stars_today || 0
               const isBreakout = starsToday >= 1000
               const isSurging = starsToday >= 500 && starsToday < 1000
@@ -630,7 +719,32 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                       </span>
                     </td>
 
-                    {/* 3. Total Stars (1st in metric order) */}
+                    {/* 3. Favorite Action Button (Appears on hover or if favorited) */}
+                    <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                      <button
+                        type="button"
+                        data-testid={`fav-btn-${row.repo_id}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleToggleFavorite(row.repo_id)
+                        }}
+                        className={`p-1 rounded-md transition-all ${
+                          isFav
+                            ? 'text-rose-500 opacity-100 hover:text-rose-400 hover:scale-110'
+                            : 'text-neutral-500 opacity-0 group-hover:opacity-100 hover:text-rose-400 hover:bg-neutral-800'
+                        }`}
+                        title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                        aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                      >
+                        <Heart
+                          className={`w-4 h-4 transition-transform active:scale-125 ${
+                            isFav ? 'fill-rose-500 text-rose-500' : 'fill-transparent'
+                          }`}
+                        />
+                      </button>
+                    </td>
+
+                    {/* 4. Total Stars (1st in metric order) */}
                     <td className="px-3 py-2.5 whitespace-nowrap font-mono text-neutral-200">
                       <div className="flex items-center gap-1 font-semibold">
                         <Star className="w-3 h-3 text-warning-400 fill-warning-400/20" />
@@ -638,48 +752,44 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                       </div>
                     </td>
 
-                    {/* 4. Readiness (2nd in metric order) */}
+                    {/* 5. Readiness (2nd in metric order) */}
                     <td className="px-3 py-2.5 whitespace-nowrap font-mono">
                       <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${getReadinessStyle(prodScore)}`}>
                         {prodScore}/100
                       </span>
                     </td>
 
-                    {/* 5. Trend Power (3rd in metric order: nuanced color & shade) */}
-                    <td className="px-3 py-2.5 whitespace-nowrap">
+                    {/* 6. Trend Power (3rd in metric order) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap font-mono">
                       <div className="flex items-center gap-2">
-                        <span className={`font-mono text-xs ${scoreStyle.text}`}>
+                        <span className={`w-12 text-right ${scoreStyle.text}`}>
                           {row.trending_power_score.toFixed(1)}
                         </span>
-                        <div className="w-14 h-1.5 bg-neutral-800/90 rounded-full overflow-hidden hidden sm:block p-0">
+                        <div className="w-16 h-1.5 bg-neutral-800 rounded-full overflow-hidden shrink-0">
                           <div
-                            className={`h-full ${scoreStyle.bar} rounded-full transition-all duration-300`}
-                            style={{ width: `${Math.min(Math.round(((row.trending_power_score || 0) / maxObservedScore) * 100), 100)}%` }}
+                            className={`h-full rounded-full transition-all duration-500 ${scoreStyle.bar}`}
+                            style={{
+                              width: `${Math.min(100, Math.max(3, (row.trending_power_score / Math.min(350, maxObservedScore)) * 100))}%`,
+                            }}
                           />
                         </div>
                       </div>
                     </td>
 
-                    {/* 6. Velocity (4th in metric order) */}
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <div
-                        className="flex items-center gap-1.5 whitespace-nowrap"
-                        data-notification-status={isBreakout ? 'breakout' : isSurging ? 'surge' : 'normal'}
-                      >
+                    {/* 7. Velocity (4th in metric order, true daily rate) */}
+                    <td className="px-3 py-2.5 whitespace-nowrap font-mono">
+                      <div className="flex items-center gap-1.5">
                         <span
-                          className={`font-mono text-xs font-bold ${
+                          className={`font-semibold ${
                             isBreakout
-                              ? 'text-error-400'
+                              ? 'text-error-400 font-bold'
                               : isSurging
-                              ? 'text-warning-400'
-                              : starsToday > 0
-                              ? 'text-neutral-200'
-                              : 'text-neutral-500'
+                              ? 'text-warning-400 font-medium'
+                              : 'text-neutral-300'
                           }`}
                         >
-                          {starsToday > 0 ? `+${starsToday.toLocaleString()}/day` : '—'}
+                          +{starsToday.toLocaleString()}/day
                         </span>
-
                         {isBreakout && (
                           <span
                             className="inline-flex items-center px-1 py-0.2 text-[10px] font-bold rounded bg-error-500/20 text-error-400 border border-error-500/30"
@@ -699,14 +809,14 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                       </div>
                     </td>
 
-                    {/* 7. Peak (5th in metric order) */}
+                    {/* 8. Peak (5th in metric order) */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="px-1.5 py-0.2 rounded bg-neutral-800/80 text-[10px] font-mono font-medium text-success-400 border border-neutral-700/50">
                         #{row.peak_rank}
                       </span>
                     </td>
 
-                    {/* 8. Streak & 7d/30d Presence */}
+                    {/* 9. Streak & 7d/30d Presence */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {(() => {
                         const d7 = row.days_7d !== undefined ? row.days_7d : 0
@@ -745,57 +855,52 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
                       })()}
                     </td>
 
-                    {/* 9. Language (6th in metric order) */}
+                    {/* 10. Language */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {row.language ? (
-                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-neutral-800 border border-neutral-700 text-neutral-300">
+                        <span className="px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-neutral-700 text-[11px] font-mono">
                           {row.language}
                         </span>
                       ) : (
-                        <span className="text-neutral-500 text-xs">—</span>
+                        <span className="text-neutral-500 text-[11px]">Markdown</span>
                       )}
                     </td>
 
-                    {/* 10. Category (7th in metric order) */}
+                    {/* 11. Category */}
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-primary-500/10 text-primary-300 border border-primary-500/20">
+                      <span className="px-2 py-0.5 rounded-md bg-neutral-900 text-neutral-300 border border-neutral-800 text-[11px] font-medium">
                         {row.ai_specs?.architecture_type || 'Full-Stack App'}
                       </span>
                     </td>
 
-                    {/* 11. GitHub Link (8th in metric order) */}
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                    {/* 12. GitHub Link */}
+                    <td className="px-3 py-2.5 whitespace-nowrap text-right">
                       <a
                         href={`https://github.com/${row.repo_name}`}
                         target="_blank"
                         rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white border border-neutral-700 hover:border-neutral-600 transition-colors text-[11px] font-semibold shadow-sm"
-                        title="Open on GitHub"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-neutral-100 transition-colors text-xs font-medium"
                       >
                         <span>GitHub</span>
-                        <ExternalLink className="w-3 h-3 text-neutral-400 group-hover:text-white" />
+                        <ExternalLink className="w-3 h-3" />
                       </a>
                     </td>
                   </tr>
 
-                  {/* ─── Expandable AI Intelligence Card (Readiness & GitHub Link Removed) ─── */}
+                  {/* Expanded Row: Key Value Proposition & Tech Stack */}
                   {isExpanded && (
                     <tr>
-                      <td colSpan={11} className="p-0 bg-neutral-950 border-y border-primary-500/30">
-                        <div className="w-full px-4 sm:px-6 py-4 space-y-3.5 animate-in fade-in duration-150">
-                          {/* Card Header: Repo Name & Architecture badge ONLY */}
-                          <div className="flex items-center justify-between pb-2.5 border-b border-neutral-800">
-                            <div className="flex items-center gap-2">
-                              <Sparkles className="w-4 h-4 text-primary-400" />
-                              <h4 className="font-bold text-neutral-50 text-sm">
-                                {row.repo_name}
-                              </h4>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-primary-500/10 text-primary-300 border border-primary-500/20">
-                                {row.ai_specs?.architecture_type || 'Full-Stack App'}
-                              </span>
-                            </div>
-
+                      <td colSpan={12} className="px-4 py-4 bg-neutral-900/40 border-y border-neutral-800/80">
+                        <div className="space-y-3 max-w-4xl">
+                          {/* Header Summary */}
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-neutral-100 text-sm">
+                              {row.repo_name}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-primary-500/10 text-primary-400 border border-primary-500/20 text-[10px] font-mono">
+                              {row.ai_specs?.architecture_type || 'Full-Stack App'}
+                            </span>
                             <span className="text-neutral-500 text-[11px]">
                               License: <strong className="text-neutral-300">{row.ai_specs?.license_risk || 'Low (Standard OSS)'}</strong>
                             </span>
@@ -877,7 +982,7 @@ export const UnifiedTableView: React.FC<UnifiedTableViewProps> = ({
             })
           ) : (
             <tr>
-              <td colSpan={11} className="px-4 py-12 text-center text-neutral-500">
+              <td colSpan={12} className="px-4 py-12 text-center text-neutral-500">
                 <div className="flex flex-col items-center justify-center gap-2.5">
                   <p>No repositories found matching your filter criteria.</p>
                   <button

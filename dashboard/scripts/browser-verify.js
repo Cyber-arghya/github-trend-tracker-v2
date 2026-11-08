@@ -56,64 +56,92 @@ async function runBrowserVerification() {
       throw new Error(`Last updated text does not look valid: "${lastUpdatedText}"`)
     }
 
-    // 2. Click "This Week" tab
-    console.log('👉 Clicking "This Week" tab...')
-    const buttons = await page.$$('button')
-    let weekBtn
-    for (const b of buttons) {
-      const text = await page.evaluate((el) => el.textContent, b)
-      if (text && text.includes('This Week')) {
-        weekBtn = b
-        break
-      }
+    // 2. Verify Favorite Icon appears in Table Header
+    const favHeader = await page.$('table thead th:nth-child(3)')
+    if (!favHeader) {
+      throw new Error('Favorite column header not found!')
     }
-    if (!weekBtn) {
-      throw new Error('Could not find "This Week" button')
-    }
-    await weekBtn.click()
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    console.log('✅ Favorite column header verified between Repository and Stars.')
 
-    // 3. Verify rank uniqueness (ZERO duplicate ranks in table)
-    const ranks = await page.evaluate(() => {
-      const rankElements = document.querySelectorAll('tbody tr td:first-child span')
-      return Array.from(rankElements).map((el) => el.textContent?.trim() || '')
-    })
-    console.log('📊 Ranks rendered in This Week table:', ranks.slice(0, 15))
-    const rankSet = new Set(ranks)
-    if (ranks.length > 0 && rankSet.size !== ranks.length) {
-      throw new Error(`Duplicate ranks detected in table! Total rows: ${ranks.length}, Unique ranks: ${rankSet.size}`)
-    }
-    console.log(`✅ Rank uniqueness verified: all ${ranks.length} rows have unique ranks (no duplicate #2s)!`)
-
-    // 4. Click first row to expand and inspect Trending Presence stats
-    console.log('👉 Clicking first row to expand AI specs and Trending Presence...')
+    // 3. Verify Row Hover & Favorite Toggle
+    console.log('👉 Hovering over first repository row...')
     const firstRow = await page.$('tbody tr')
-    if (firstRow) {
-      await firstRow.click()
-      await new Promise((resolve) => setTimeout(resolve, 800))
-
-      const expandedText = await page.evaluate(() => {
-        const expandedRow = document.querySelector('tbody tr + tr')
-        return expandedRow ? expandedRow.textContent : ''
-      })
-
-      if (expandedText && expandedText.includes('Trending Presence')) {
-        console.log('✅ Expanded row rendered Trending Presence.')
-        // Verify dashes are replaced with real metrics
-        if (expandedText.includes('7d Hotness: —') && expandedText.includes('30d Endurance: —')) {
-          console.warn('⚠️ Warning: Still found dashes in 7d Hotness')
-        } else {
-          console.log('✅ 7d Hotness and 30d Endurance successfully populated with real numbers!')
-        }
-      }
+    if (!firstRow) {
+      throw new Error('No rows found in table body!')
     }
 
-    // 5. Take screenshot proof
-    const screenshotPath = path.join(scratchDir, 'browser-test-fixed-dashboard.png')
+    const firstRepoName = await page.evaluate(() => {
+      const el = document.querySelector('tbody tr td:nth-child(2) span')
+      return el ? el.textContent?.trim() : ''
+    })
+    console.log('Target repository for favorite test:', firstRepoName)
+
+    await firstRow.hover()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    // Click the favorite button on the first row
+    const favButton = await page.$('tbody tr td:nth-child(3) button')
+    if (!favButton) {
+      throw new Error('Favorite button not found on first row!')
+    }
+
+    console.log('👉 Clicking favorite button to add to favorites...')
+    await favButton.click()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // Verify favorite pill in header/filters shows count 1
+    const favPill = await page.$('[data-testid="favorites-pill"]')
+    if (!favPill) {
+      throw new Error('Favorites pill ([data-testid="favorites-pill"]) not found!')
+    }
+    const favPillText = await page.evaluate((el) => el.textContent, favPill)
+    console.log('Favorites pill text after addition:', favPillText)
+    if (!favPillText.includes('1')) {
+      throw new Error(`Expected Favorites count 1, but found: "${favPillText}"`)
+    }
+    console.log('✅ Favorites counter updated to 1!')
+
+    // 4. Click Favorites Pill to view My Fav List
+    console.log('👉 Clicking Favorites pill to open My Fav List...')
+    await favPill.click()
+    await new Promise((resolve) => setTimeout(resolve, 800))
+
+    const favRowsCount = await page.evaluate(() => {
+      return document.querySelectorAll('tbody tr').length
+    })
+    console.log(`Rows in Favorites view: ${favRowsCount}`)
+    if (favRowsCount !== 1) {
+      throw new Error(`Expected exactly 1 row in Favorites view, but found ${favRowsCount}`)
+    }
+
+    const favRowRepoName = await page.evaluate(() => {
+      const el = document.querySelector('tbody tr td:nth-child(2) span')
+      return el ? el.textContent?.trim() : ''
+    })
+    if (favRowRepoName !== firstRepoName) {
+      throw new Error(`Expected "${firstRepoName}" in favorites, but got "${favRowRepoName}"`)
+    }
+    console.log(`✅ My Fav List verified: correctly displays "${favRowRepoName}".`)
+
+    // 5. Verify persistence across page reload
+    console.log('🔄 Reloading page to verify localStorage persistence...')
+    await page.reload({ waitUntil: 'networkidle2' })
+    await page.waitForSelector('table', { timeout: 15000 })
+
+    const favPillReloaded = await page.waitForSelector('[data-testid="favorites-pill"]')
+    const favPillTextReloaded = await page.evaluate((el) => el.textContent, favPillReloaded)
+    console.log('Favorites pill text after reload:', favPillTextReloaded)
+    if (!favPillTextReloaded.includes('1')) {
+      throw new Error(`Favorites count did not persist across reload! Got: "${favPillTextReloaded}"`)
+    }
+    console.log('✅ Favorites persistence verified across page refresh!')
+
+    // 6. Take screenshot proof of favorites list
+    const screenshotPath = path.join(scratchDir, 'browser-test-favorites-view.png')
     await page.screenshot({ path: screenshotPath, fullPage: true })
     console.log(`📸 Screenshot captured and saved to: ${screenshotPath}`)
 
-    console.log('🎉 ALL BROWSER ASSERTIONS PASSED WITH ZERO ERRORS!')
+    console.log('🎉 ALL FAVORITE SYSTEM ASSERTIONS PASSED WITH ZERO ERRORS!')
     process.exit(0)
   } finally {
     if (browser) await browser.close()

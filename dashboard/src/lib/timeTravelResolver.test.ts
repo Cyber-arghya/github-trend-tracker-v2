@@ -235,17 +235,19 @@ describe('Time Travel Snapshot Resolver (Unit & Integration Tests)', () => {
   })
 
   describe('calculateCoordinatedTimePeriodCounts', () => {
-    it('calculates exact distinct repo counts per period', () => {
+    it('calculates exact distinct repo counts per period and favorites', () => {
       const counts = calculateCoordinatedTimePeriodCounts(
         mockRepositories,
         mockSnapshots,
         'daily',
-        '2026-11-06'
+        '2026-11-06',
+        5
       )
       expect(counts.all).toBe(3)
       expect(counts.daily).toBe(2) // 2 unique repos on 2026-11-06
       expect(counts.weekly).toBe(1) // 1 unique repo on weekly
       expect(counts.monthly).toBe(0)
+      expect(counts.favorites).toBe(5)
     })
 
     it('updates daily count dynamically when viewing 2026-11-05', () => {
